@@ -2,6 +2,9 @@
 
 **Sonic Census** is a full-stack environmental acoustic intelligence and regulatory compliance platform. It pairs **IEC 61672-1 logarithmic A-weighted sound measurement** and **multi-label DSP / PANNs CNN14 audio classification** with India's **Central Pollution Control Board (CPCB) Noise Pollution (Regulation and Control) Rules, 2000**, backed by a **SHA-256 content-addressed database audio vault**, interactive metropolitan sensor maps, certified PDF/CSV statutory reporting, and dedicated Officer & Citizen portals.
 
+- **Live Frontend (Netlify Demo Mode):** https://sonic-census.netlify.app/
+- **Repository:** https://github.com/shub203/sonic-census
+
 ---
 
 ## Key Capabilities
