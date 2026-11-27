@@ -105,3 +105,13 @@ def test_jwt_auth_security():
     decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     assert decoded["sub"] == "user-123"
     assert decoded["role"] == "officer"
+
+
+def test_database_url_normalization():
+    """Verify postgres:// and postgresql:// provider URLs normalize cleanly to psycopg v3 dialect."""
+    from app.database.connection import _normalize_database_url
+
+    assert _normalize_database_url("postgres://u:p@host:5432/db") == "postgresql+psycopg://u:p@host:5432/db"
+    assert _normalize_database_url("postgresql://u:p@host:5432/db") == "postgresql+psycopg://u:p@host:5432/db"
+    assert _normalize_database_url("postgresql+psycopg://u:p@host:5432/db") == "postgresql+psycopg://u:p@host:5432/db"
+    assert _normalize_database_url("sqlite:///./noisepollution.db") == "sqlite:///./noisepollution.db"

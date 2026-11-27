@@ -30,12 +30,15 @@ app = FastAPI(
 )
 
 # CORS Middleware
+cors_origins = list(dict.fromkeys([settings.FRONTEND_ORIGIN, *settings.ALLOWED_ORIGINS]))
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all for flexible dev across network / localhost ports
+    allow_origins=cors_origins,
+    allow_origin_regex=r"^https://([a-z0-9-]+--)?sonic-census\.netlify\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "X-Audio-SHA256", "X-Entry-SHA256", "X-Content-Source"],
 )
 
 # Mount static asset directories

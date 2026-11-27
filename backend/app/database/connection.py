@@ -4,17 +4,29 @@ from sqlalchemy.orm import sessionmaker
 from app.config import settings
 from app.database.base import Base
 
+def _normalize_database_url(url: str) -> str:
+    """Normalize provider postgres:// or postgresql:// URLs to SQLAlchemy psycopg v3 dialect."""
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+DATABASE_URL = _normalize_database_url(settings.DATABASE_URL)
+
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False, "timeout": 30}
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    DATABASE_URL,
     connect_args=connect_args,
+    pool_pre_ping=True,
     echo=False
 )
 
-if settings.DATABASE_URL.startswith("sqlite"):
+if DATABASE_URL.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def _configure_sqlite_pragmas(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
@@ -51,6 +63,6 @@ def init_db():
     import app.database.models
     Base.metadata.create_all(bind=engine)
     _ensure_audio_hash_columns()
-    if settings.DATABASE_URL.startswith("sqlite"):
+    if DATABASE_URL.startswith("sqlite"):
         with engine.connect() as conn:
             conn.exec_driver_sql("PRAGMA journal_mode=WAL;")
