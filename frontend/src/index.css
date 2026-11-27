@@ -1,0 +1,168 @@
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --paper: #F3EFE6;
+    --paper-muted: #EAE5D9;
+    --paper-light: #FAF7F1;
+    --ink: #14181B;
+    --graphite: #4A5157;
+    --sand: #D9D3C4;
+    --quiet: #2F6F63;
+    --moderate: #E9A23B;
+    --loud: #E4572E;
+    --instrument: #0F1315;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* All tabular numerics so numbers do not jitter */
+  .tabular-nums,
+  .font-mono,
+  table,
+  .metric-val {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Focus styling with visible ink outline */
+  :focus-visible {
+    outline: 2px solid #14181B;
+    outline-offset: 1px;
+  }
+
+  /* Form controls and dropdowns: ensure maximum readability in both light & dark contexts */
+  select {
+    background-color: var(--paper-light);
+    color: var(--ink);
+    color-scheme: light;
+  }
+
+  select option {
+    background-color: #FAF7F1;
+    color: #14181B;
+  }
+
+  .instrument-select,
+  .dark select {
+    background-color: #0F1315 !important;
+    color: #F3EFE6 !important;
+    color-scheme: dark !important;
+  }
+
+  .instrument-select option,
+  .dark select option {
+    background-color: #1A2024 !important;
+    color: #F3EFE6 !important;
+  }
+}
+
+/* ==========================================================================
+   Leaflet Cartography: Muted & Desaturated Map Tiles
+   ========================================================================== */
+.leaflet-tile-pane {
+  filter: grayscale(85%) contrast(105%) brightness(95%) sepia(15%);
+}
+
+.leaflet-container {
+  background: #E8E3D7 !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+.custom-dial-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* ==========================================================================
+   Hatched Pattern for Low Confidence & Uncalibrated States
+   ========================================================================== */
+.pattern-hatched {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(74, 81, 87, 0.12),
+    rgba(74, 81, 87, 0.12) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.pattern-hatched-dark {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.08) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+/* ==========================================================================
+   Hairline Borders & Custom Scrollbars
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #F3EFE6;
+}
+::-webkit-scrollbar-thumb {
+  background: #D9D3C4;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B8B09F;
+}
+
+/* Instrument panel scrollbars */
+.instrument-scroll::-webkit-scrollbar-track {
+  background: #0F1315;
+}
+.instrument-scroll::-webkit-scrollbar-thumb {
+  background: #283238;
+}
+.instrument-scroll::-webkit-scrollbar-thumb:hover {
+  background: #3B474E;
+}
+
+/* ==========================================================================
+   Fade-in Utility Animation
+   ========================================================================== */
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadein {
+  animation: fadein 0.4s ease both;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

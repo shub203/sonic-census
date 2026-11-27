@@ -1,0 +1,40 @@
+# Python & Virtual Environments
+backend/.venv/
+.venv/
+venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environment Secrets (keep .env.example templates only)
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Local Databases & Runtime Generated Media
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/uploads/
+backend/generated_reports/
+backend/generated_spectrograms/
+backend/models/*.pth
+
+# Node & Frontend Build Artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# Hosting CLI State & Editor Files
+.netlify/
+.vercel/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
