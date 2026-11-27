@@ -23,6 +23,12 @@ import {
   MOCK_TRENDS,
   MOCK_REPORTS
 } from './mockData';
+import {
+  recordDemoAudioUpload,
+  getDemoVaultManifest,
+  getDemoAudioDownload,
+  exportDemoVault,
+} from '../utils/demoVault';
 
 export const USE_REAL_BACKEND = import.meta.env.VITE_USE_REAL_BACKEND === 'true';
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -193,11 +199,29 @@ export const api = {
     await delay(350);
     const jobId = `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const createdAt = Date.now();
+    const isDrill = (file.name || '').toLowerCase().match(/drill|hammer|construction/) || options.dspFeatures?.isDrilling;
+    const isSiren = (file.name || '').toLowerCase().match(/siren|ambulance|police/);
+    const isNature = (file.name || '').toLowerCase().match(/bird|nature/);
+    const demoCat = isDrill ? 'Construction' : isSiren ? 'Emergency' : isNature ? 'Nature' : 'Traffic';
+    const demoLaeq = isDrill ? 77.1 : isSiren ? 88.2 : isNature ? 46.2 : 64.2;
+    const demoEntry = await recordDemoAudioUpload(file, {
+      id: jobId,
+      zone_type: options.zone_type || 'Residential',
+      duration: 8.0,
+      laeq: demoLaeq,
+      lmax: +(demoLaeq + 8.5).toFixed(1),
+      primary_category: demoCat,
+      primary_confidence: isDrill ? 0.94 : 0.91,
+      is_calibrated: Boolean(options.is_calibrated),
+    });
 
     activeJobs.set(jobId, {
       id: jobId,
       filename: file.name,
       size: file.size,
+      file_hash: demoEntry.file_hash,
+      entry_hash: demoEntry.entry_hash,
+      stored_in_db: true,
       zone_type: options.zone_type || 'Residential',
       is_calibrated: Boolean(options.is_calibrated),
       dspFeatures: options.dspFeatures || null,
@@ -217,7 +241,10 @@ export const api = {
       status: 'Queued',
       filename: file.name,
       file_size_bytes: file.size,
-      message: 'Audio received and queued for PANNs acoustic inference pipeline'
+      file_hash: demoEntry.file_hash,
+      entry_hash: demoEntry.entry_hash,
+      stored_in_db: true,
+      message: 'Audio hashed & queued in local demo audio vault'
     };
   },
 
@@ -475,6 +502,13 @@ export const api = {
 
     return {
       job_id: jobId,
+      audio_file_id: jobId,
+      filename: job.filename || 'sample.wav',
+      file_hash: job.file_hash || null,
+      entry_hash: job.entry_hash || null,
+      stored_in_db: Boolean(job.stored_in_db ?? job.file_hash),
+      raw_laeq_estimate: laeqValue,
+      raw_lmax_estimate: lmaxValue,
       is_simulated: true,
       calibration_status: job.is_calibrated ? 'calibrated' : 'uncalibrated',
       measurements: job.is_calibrated ? {
@@ -835,39 +869,56 @@ export const api = {
   },
 
   async getAudioVault(limit = 200) {
-    const res = await client.get(`/audio/vault?limit=${limit}`);
-    return res.data;
+    if (USE_REAL_BACKEND) {
+      const res = await client.get(`/audio/vault?limit=${limit}`);
+      return res.data;
+    }
+    await delay(80);
+    return getDemoVaultManifest(limit);
   },
 
   async downloadAudioFromDb({ id, fileHash, filename = 'recording.wav' }) {
-    const endpoint = id ? `/audio/${id}/download` : `/audio/by-hash/${fileHash}/download`;
-    const res = await client.get(endpoint, { responseType: 'blob' });
-    const resolvedName = extractFilenameFromDisposition(
-      res.headers?.['content-disposition'],
-      filename || `${fileHash || id || 'recording'}.wav`
-    );
-    triggerBrowserDownload(res.data, resolvedName);
-    return {
-      filename: resolvedName,
-      sha256: res.headers?.['x-audio-sha256'] || fileHash || null,
-    };
+    if (USE_REAL_BACKEND) {
+      const endpoint = id ? `/audio/${id}/download` : `/audio/by-hash/${fileHash}/download`;
+      const res = await client.get(endpoint, { responseType: 'blob' });
+      const resolvedName = extractFilenameFromDisposition(
+        res.headers?.['content-disposition'],
+        filename || `${fileHash || id || 'recording'}.wav`
+      );
+      triggerBrowserDownload(res.data, resolvedName);
+      return {
+        filename: resolvedName,
+        sha256: res.headers?.['x-audio-sha256'] || fileHash || null,
+      };
+    }
+    const demoDl = await getDemoAudioDownload({ id, fileHash, filename });
+    triggerBrowserDownload(demoDl.blob, demoDl.filename);
+    return { filename: demoDl.filename, sha256: demoDl.sha256 };
   },
 
   async exportAudioVault(format = 'zip', includeBase64 = false) {
-    const res = await client.get(
-      `/audio/vault/export?format=${encodeURIComponent(format)}&include_base64=${includeBase64 ? 'true' : 'false'}`,
-      { responseType: 'blob' }
-    );
-    const fallbackName = `sonic_census_audio_vault.${format}`;
-    const resolvedName = extractFilenameFromDisposition(res.headers?.['content-disposition'], fallbackName);
-    triggerBrowserDownload(res.data, resolvedName);
-    return resolvedName;
+    if (USE_REAL_BACKEND) {
+      const res = await client.get(
+        `/audio/vault/export?format=${encodeURIComponent(format)}&include_base64=${includeBase64 ? 'true' : 'false'}`,
+        { responseType: 'blob' }
+      );
+      const fallbackName = `sonic_census_audio_vault.${format}`;
+      const resolvedName = extractFilenameFromDisposition(res.headers?.['content-disposition'], fallbackName);
+      triggerBrowserDownload(res.data, resolvedName);
+      return resolvedName;
+    }
+    const demoArchive = await exportDemoVault(format, includeBase64);
+    triggerBrowserDownload(demoArchive.blob, demoArchive.filename);
+    return demoArchive.filename;
   },
 
   /**
    * Multimodal AI screening with Google Gemini
    */
   async screenAudioWithGemini(file, zone_type = 'Residential') {
+    if (!USE_REAL_BACKEND) {
+      return null;
+    }
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -896,6 +947,10 @@ export const api = {
     if (url === '/analytics/trends' || url === '/analytics') return { data: MOCK_TRENDS };
     if (url === '/compliance/rules') return { data: CPCB_RULES };
     if (url === '/reports') return { data: MOCK_REPORTS };
+    if (url === '/auth/me') {
+      const saved = localStorage.getItem('noise_user');
+      return { data: saved ? JSON.parse(saved) : { id: 'demo-user', name: 'Demo Officer', email: 'officer@soniccensus.ai', role: 'officer' } };
+    }
     return client.get(url, config);
   },
 
@@ -904,6 +959,30 @@ export const api = {
       return client.post(url, data, config);
     }
     await delay(150);
+    if (url === '/auth/login') {
+      const email = (data?.email || '').toLowerCase();
+      const isOfficer = email.includes('officer') || email.includes('admin');
+      const isAnalyst = email.includes('analyst');
+      const role = isOfficer ? 'officer' : (isAnalyst ? 'analyst' : 'citizen');
+      const name = isOfficer ? 'CPCB Environmental Officer' : (isAnalyst ? 'Acoustic Data Analyst' : 'Public Citizen Observer');
+      return {
+        data: {
+          access_token: 'demo-token',
+          token_type: 'bearer',
+          user: { id: `demo-${role}`, name, email: email || `${role}@soniccensus.ai`, role },
+        }
+      };
+    }
+    if (url === '/auth/register') {
+      const role = data?.role || 'citizen';
+      return {
+        data: {
+          access_token: 'demo-token',
+          token_type: 'bearer',
+          user: { id: `demo-${Date.now().toString(36)}`, name: data?.name || 'User', email: data?.email || 'user@soniccensus.ai', role },
+        }
+      };
+    }
     if (url === '/compliance/check') {
       const res = await this.checkCompliance(data);
       return { data: res };

@@ -92,14 +92,18 @@ export const AudioVaultPanel = ({ refreshKey = null }) => {
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-ink" strokeWidth={1.5} />
             <span className="text-[10px] font-mono uppercase tracking-wider text-graphite">
-              Hashed SQLite Audio Vault · SHA-256 Content-Addressed BLOBs
+              {vault?.is_demo_vault
+                ? 'Demo Browser Audio Vault · SHA-256 Local Session'
+                : 'Hashed SQLite Audio Vault · SHA-256 Content-Addressed BLOBs'}
             </span>
           </div>
           <h2 className="font-serif text-lg font-bold text-ink mt-0.5">
             Stored Audio Database & Hash Ledger
           </h2>
           <p className="text-xs font-mono text-graphite mt-0.5">
-            Every uploaded clip is hashed with SHA-256 and stored in the database for verified download.
+            {vault?.is_demo_vault
+              ? 'Demo mode active (no hosted backend attached yet): uploads are SHA-256 hashed in browser memory for test downloads.'
+              : 'Every uploaded clip is hashed with SHA-256 and stored in the database for verified download.'}
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Database, Download, Copy, Check, AlertTriangle } from 'lucide-react';
-import { api } from '../../api';
+import { api, USE_REAL_BACKEND } from '../../api';
 
 export const AudioHashReceipt = ({
   audioId,
@@ -41,7 +41,9 @@ export const AudioHashReceipt = ({
         <div className="flex items-center gap-2">
           <Database className="w-3.5 h-3.5 text-ink flex-shrink-0" strokeWidth={1.5} />
           <span className="text-[10px] uppercase tracking-wider text-ink font-bold">
-            Database Hash Vault Record {storedInDb ? '· Stored in SQLite DB' : ''}
+            {USE_REAL_BACKEND
+              ? `Database Hash Vault Record ${storedInDb ? '· Stored in SQLite DB' : ''}`
+              : 'Demo Hash Vault Record · Browser SHA-256'}
           </span>
         </div>
 
@@ -52,7 +54,7 @@ export const AudioHashReceipt = ({
           className="inline-flex items-center justify-center gap-1.5 px-3 py-1 border border-ink bg-ink text-paper text-[11px] font-bold uppercase tracking-wider hover:bg-ink-light transition-colors disabled:opacity-50"
         >
           <Download className="w-3 h-3" strokeWidth={1.5} />
-          <span>{downloading ? 'Downloading...' : 'Download Audio from DB'}</span>
+          <span>{downloading ? 'Downloading...' : (USE_REAL_BACKEND ? 'Download Audio from DB' : 'Download Audio (Demo)')}</span>
         </button>
       </div>
 

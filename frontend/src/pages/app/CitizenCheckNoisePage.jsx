@@ -184,10 +184,14 @@ export const CitizenCheckNoisePage = () => {
     try {
       const threshold = zone === 'Silence' ? 50.0 : (zone === 'Commercial' ? 65.0 : 55.0);
       const up = await api.uploadAudio(targetFile, { zone_type: zone, is_calibrated: false });
-      const resData = up?.result;
+      const resData = up?.result || (up?.job_id ? await api.getJobResults(up.job_id) : null);
       if (resData) {
-        const dbVal = typeof resData.raw_laeq_estimate === 'number' ? resData.raw_laeq_estimate : 58.0;
-        const lmaxVal = typeof resData.raw_lmax_estimate === 'number' ? resData.raw_lmax_estimate : +(dbVal + 8.0).toFixed(1);
+        const dbVal = typeof resData.raw_laeq_estimate === 'number'
+          ? resData.raw_laeq_estimate
+          : (typeof resData.measurements?.laeq_dba === 'number' ? resData.measurements.laeq_dba : 58.0);
+        const lmaxVal = typeof resData.raw_lmax_estimate === 'number'
+          ? resData.raw_lmax_estimate
+          : +(dbVal + 8.0).toFixed(1);
         const margin = +(dbVal - threshold).toFixed(1);
         const isExceeded = dbVal > threshold;
         const events = (resData.whole_recording_classification || []).slice(0, 4).map((ev) => ({
@@ -199,13 +203,13 @@ export const CitizenCheckNoisePage = () => {
         setResult({
           audio_file_id: resData.audio_file_id || up.job_id,
           filename: targetFile.name,
-          file_hash: resData.file_hash || null,
-          entry_hash: resData.entry_hash || null,
-          stored_in_db: Boolean(resData.stored_in_db ?? resData.file_hash),
+          file_hash: resData.file_hash || up.file_hash || null,
+          entry_hash: resData.entry_hash || up.entry_hash || null,
+          stored_in_db: Boolean(resData.stored_in_db ?? up.stored_in_db ?? resData.file_hash),
           measured_laeq: dbVal,
           measured_lmax: lmaxVal,
           is_calibrated: false,
-          ai_engine: 'SonicCensus-DSP-v2 (Backend)',
+          ai_engine: resData.is_simulated ? 'SonicCensus-DSP-v2 (Demo)' : 'SonicCensus-DSP-v2 (Backend)',
           compliance: {
             zone_type: zone,
             period: resData.compliance?.period === 'Night' ? 'Night (22:00 - 06:00)' : 'Day (06:00 - 22:00)',
