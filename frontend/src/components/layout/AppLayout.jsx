@@ -336,11 +336,11 @@ export const AppLayout = () => {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Brand */}
-      <div className="h-14 px-5 border-b border-sand flex items-center gap-2 flex-shrink-0">
-        <div className="w-5 h-5 border border-ink flex items-center justify-center">
-          <Activity className="w-3 h-3 text-ink" strokeWidth={1.5} />
+      <div className="h-16 px-5 border-b border-sand flex items-center gap-2.5 flex-shrink-0">
+        <div className="w-7 h-7 border border-ink flex items-center justify-center flex-shrink-0">
+          <Activity className="w-4 h-4 text-ink" strokeWidth={1.75} />
         </div>
-        <span className="font-serif font-bold text-sm text-ink tracking-tight">
+        <span className="font-serif font-bold text-lg text-ink tracking-tight leading-none">
           Sonic Census
         </span>
       </div>

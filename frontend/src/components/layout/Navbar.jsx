@@ -81,14 +81,14 @@ export const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-50 bg-paper/95 backdrop-blur-sm border-b border-sand">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-14">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" onClick={handleLogoClick} className="flex items-center gap-2">
-            <div className="w-5 h-5 border border-ink flex items-center justify-center">
-              <Activity className="w-3 h-3 text-ink" strokeWidth={1.5} />
+          <Link to="/" onClick={handleLogoClick} className="flex items-center gap-3">
+            <div className="w-8 h-8 border border-ink flex items-center justify-center flex-shrink-0">
+              <Activity className="w-4 h-4 text-ink" strokeWidth={1.75} />
             </div>
-            <span className="font-serif font-bold text-sm text-ink tracking-tight">
+            <span className="font-serif font-bold text-xl sm:text-2xl text-ink tracking-tight leading-none">
               Sonic Census
             </span>
           </Link>

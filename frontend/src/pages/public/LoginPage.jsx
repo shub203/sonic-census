@@ -110,12 +110,12 @@ export const LoginPage = () => {
   return (
     <div className="min-h-screen bg-paper text-ink font-sans antialiased flex flex-col">
       {/* Top bar */}
-      <header className="h-14 border-b border-sand px-6 flex items-center justify-between flex-shrink-0">
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-5 h-5 border border-ink flex items-center justify-center">
-            <Activity className="w-3 h-3 text-ink" strokeWidth={1.5} />
+      <header className="h-16 border-b border-sand px-6 flex items-center justify-between flex-shrink-0">
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="w-8 h-8 border border-ink flex items-center justify-center flex-shrink-0">
+            <Activity className="w-4 h-4 text-ink" strokeWidth={1.75} />
           </div>
-          <span className="font-serif font-bold text-sm text-ink tracking-tight">Sonic Census</span>
+          <span className="font-serif font-bold text-xl text-ink tracking-tight leading-none">Sonic Census</span>
         </Link>
         <Link to="/" className="text-xs font-mono text-graphite hover:text-ink transition-colors">
           ← Back to Overview
