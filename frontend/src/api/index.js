@@ -36,7 +36,7 @@ export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 75000,
 });
 
 // Attach JWT token if present

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../api';
+import { api, USE_REAL_BACKEND } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -12,14 +12,25 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (USE_REAL_BACKEND && token === 'demo-token') {
+      const demoPresetEmails = ['officer@soniccensus.ai', 'analyst@soniccensus.ai', 'citizen@soniccensus.ai'];
+      if (user?.email && demoPresetEmails.includes(user.email)) {
+        switchRole(user.role || 'citizen');
+      } else {
+        logout();
+      }
+      return;
+    }
     if (token && token !== 'demo-token') {
       api.get('/auth/me')
         .then(res => {
           setUser(res.data);
           localStorage.setItem('noise_user', JSON.stringify(res.data));
         })
-        .catch(() => {
-          // Keep current user state
+        .catch((err) => {
+          if (err?.response?.status === 401) {
+            logout();
+          }
         });
     }
   }, [token]);
