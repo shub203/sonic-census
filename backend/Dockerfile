@@ -12,11 +12,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY requirements-prod.txt .
 
-# Install CPU-only PyTorch wheel first to minimize image size and memory pressure
+# Install lean production dependencies (DSP-v2 classifier; no heavy PyTorch wheel needed)
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+    && pip install --no-cache-dir -r requirements-prod.txt
 
 COPY . .
 
