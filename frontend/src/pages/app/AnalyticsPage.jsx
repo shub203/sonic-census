@@ -18,6 +18,8 @@ import { api } from '../../api';
 export const AnalyticsPage = () => {
   const [period, setPeriod] = useState('daily'); // 'daily' | 'weekly'
   const [trends, setTrends] = useState([]);
+  const [categoryDistribution, setCategoryDistribution] = useState([]);
+  const [locationComparisons, setLocationComparisons] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,24 +29,29 @@ export const AnalyticsPage = () => {
     });
   }, [period]);
 
-  const locationComparisons = [
-    { city: 'Connaught Place (Delhi)', avg: 63.8, peak: 78.4, status: 'moderate' },
-    { city: 'AIIMS Perimeter (Delhi)', avg: 52.4, peak: 68.2, status: 'loud' }, // Silence zone exceedance
-    { city: 'Bandra Kurla (Mumbai)', avg: 64.5, peak: 79.1, status: 'moderate' },
-    { city: 'Dharavi Industrial (Mumbai)', avg: 72.1, peak: 86.4, status: 'moderate' },
-    { city: 'Whitefield (Bengaluru)', avg: 67.2, peak: 82.5, status: 'loud' },
-    { city: 'HITEC City (Hyderabad)', avg: 62.1, peak: 76.0, status: 'quiet' },
-  ];
-
-  const categoryDistribution = [
-    { name: 'Traffic (Vehicular)', events: 642, pct: 34.8, color: '#E4572E' },
-    { name: 'Human Activity (Voice, Crowd)', events: 388, pct: 21.1, color: '#2F6F63' },
-    { name: 'Construction (Drills, Impacts)', events: 312, pct: 16.9, color: '#E4572E' },
-    { name: 'Industrial (Machinery, Motors)', events: 245, pct: 13.3, color: '#E9A23B' },
-    { name: 'Nature & Canopy (Birds, Wind)', events: 142, pct: 7.7, color: '#2F6F63' },
-    { name: 'Emergency (Sirens, Horns)', events: 78, pct: 4.2, color: '#E4572E' },
-    { name: 'Aviation & Rail', events: 35, pct: 2.0, color: '#2F6F63' },
-  ];
+  useEffect(() => {
+    Promise.all([
+      api.getAnalyticsCategories().catch(() => []),
+      api.getAnalyticsLocations().catch(() => []),
+    ]).then(([cats, locs]) => {
+      setCategoryDistribution(
+        (cats || []).map((c) => ({
+          name: c.name,
+          events: c.value ?? 0,
+          pct: c.percentage ?? 0,
+          color: c.color || '#2F6F63',
+        }))
+      );
+      setLocationComparisons(
+        (locs || []).map((l) => ({
+          city: `${l.name} — ${l.location}`,
+          avg: l.laeq,
+          peak: l.limit,
+          status: l.status,
+        }))
+      );
+    });
+  }, []);
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16 antialiased">
@@ -205,7 +212,7 @@ export const AnalyticsPage = () => {
                 <tr className="border-b border-sand text-[10px] text-graphite uppercase">
                   <th className="py-2 pr-2">Station Location</th>
                   <th className="py-2 text-right">Avg LAeq</th>
-                  <th className="py-2 text-right">Peak Lmax</th>
+                  <th className="py-2 text-right">CPCB Limit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand">

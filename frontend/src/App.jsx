@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -7,29 +7,36 @@ import { ThemeProvider } from './context/ThemeContext';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 
-// Public Pages
+// Eager public landing route for fast first paint
 import { LandingPage } from './pages/public/LandingPage';
-import { Contact } from './pages/public/Contact';
-import { LoginPage } from './pages/public/LoginPage';
-import { PrivacyPage, TermsPage } from './pages/public/LegalPages';
 
-// App Layout & Pages
-import { AppLayout } from './components/layout/AppLayout';
-import { DashboardPage } from './pages/app/DashboardPage';
-import { AnalyzePage } from './pages/app/AnalyzePage';
-import { MapPage } from './pages/app/MapPage';
-import { CompliancePage } from './pages/app/CompliancePage';
-import { AnalyticsPage } from './pages/app/AnalyticsPage';
-import { ReportsPage } from './pages/app/ReportsPage';
-import { SensorsPage } from './pages/app/SensorsPage';
-import { SettingsPage } from './pages/app/SettingsPage';
-import { GrievancesPage } from './pages/app/GrievancesPage';
+// Route-level code-split bundles
+const Contact = lazy(() => import('./pages/public/Contact').then((m) => ({ default: m.Contact })));
+const LoginPage = lazy(() => import('./pages/public/LoginPage').then((m) => ({ default: m.LoginPage })));
+const PrivacyPage = lazy(() => import('./pages/public/LegalPages').then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import('./pages/public/LegalPages').then((m) => ({ default: m.TermsPage })));
 
-// Citizen Specific Pages
-import { CitizenDashboardPage } from './pages/app/CitizenDashboardPage';
-import { CitizenComplaintPage } from './pages/app/CitizenComplaintPage';
-import { CitizenCheckNoisePage } from './pages/app/CitizenCheckNoisePage';
-import { CitizenGuidelinesPage } from './pages/app/CitizenGuidelinesPage';
+const AppLayout = lazy(() => import('./components/layout/AppLayout').then((m) => ({ default: m.AppLayout })));
+const DashboardPage = lazy(() => import('./pages/app/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const AnalyzePage = lazy(() => import('./pages/app/AnalyzePage').then((m) => ({ default: m.AnalyzePage })));
+const MapPage = lazy(() => import('./pages/app/MapPage').then((m) => ({ default: m.MapPage })));
+const CompliancePage = lazy(() => import('./pages/app/CompliancePage').then((m) => ({ default: m.CompliancePage })));
+const AnalyticsPage = lazy(() => import('./pages/app/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
+const ReportsPage = lazy(() => import('./pages/app/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const SensorsPage = lazy(() => import('./pages/app/SensorsPage').then((m) => ({ default: m.SensorsPage })));
+const SettingsPage = lazy(() => import('./pages/app/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const GrievancesPage = lazy(() => import('./pages/app/GrievancesPage').then((m) => ({ default: m.GrievancesPage })));
+
+const CitizenDashboardPage = lazy(() => import('./pages/app/CitizenDashboardPage').then((m) => ({ default: m.CitizenDashboardPage })));
+const CitizenComplaintPage = lazy(() => import('./pages/app/CitizenComplaintPage').then((m) => ({ default: m.CitizenComplaintPage })));
+const CitizenCheckNoisePage = lazy(() => import('./pages/app/CitizenCheckNoisePage').then((m) => ({ default: m.CitizenCheckNoisePage })));
+const CitizenGuidelinesPage = lazy(() => import('./pages/app/CitizenGuidelinesPage').then((m) => ({ default: m.CitizenGuidelinesPage })));
+
+const RouteFallback = () => (
+  <div className="min-h-[40vh] flex items-center justify-center text-xs font-mono text-graphite">
+    Loading Sonic Census module...
+  </div>
+);
 
 // Public Layout Wrapper
 const PublicLayout = ({ children }) => (
@@ -46,7 +53,7 @@ const AppIndexRedirect = () => {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  return <Navigate to={isAdmin ? "/app/dashboard" : "/app/citizen"} replace />;
+  return <Navigate to={isAdmin ? '/app/dashboard' : '/app/citizen'} replace />;
 };
 
 // Admin Guard: ensures citizen cannot access admin modules without authenticating as an Officer
@@ -66,43 +73,45 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <Router>
-          <Routes>
-            {/* Public Website Routes */}
-            <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
-            <Route path="/how-it-works" element={<Navigate to="/#how-it-works" replace />} />
-            <Route path="/features" element={<Navigate to="/#features" replace />} />
-            <Route path="/research" element={<Navigate to="/#research" replace />} />
-            <Route path="/about" element={<Navigate to="/#about" replace />} />
-            <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
-            <Route path="/privacy" element={<PublicLayout><PrivacyPage /></PublicLayout>} />
-            <Route path="/terms" element={<PublicLayout><TermsPage /></PublicLayout>} />
-            <Route path="/login" element={<LoginPage />} />
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              {/* Public Website Routes */}
+              <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
+              <Route path="/how-it-works" element={<Navigate to="/#how-it-works" replace />} />
+              <Route path="/features" element={<Navigate to="/#features" replace />} />
+              <Route path="/research" element={<Navigate to="/#research" replace />} />
+              <Route path="/about" element={<Navigate to="/#about" replace />} />
+              <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
+              <Route path="/privacy" element={<PublicLayout><PrivacyPage /></PublicLayout>} />
+              <Route path="/terms" element={<PublicLayout><TermsPage /></PublicLayout>} />
+              <Route path="/login" element={<LoginPage />} />
 
-            {/* Application Portal Routes */}
-            <Route path="/app" element={<AppLayout />}>
-              <Route index element={<AppIndexRedirect />} />
-              
-              {/* Admin Core Pages (Protected: requires Officer / Admin login) */}
-              <Route path="dashboard" element={<AdminGuard><DashboardPage /></AdminGuard>} />
-              <Route path="analyze" element={<AdminGuard><AnalyzePage /></AdminGuard>} />
-              <Route path="map" element={<MapPage />} />
-              <Route path="compliance" element={<AdminGuard><CompliancePage /></AdminGuard>} />
-              <Route path="analytics" element={<AdminGuard><AnalyticsPage /></AdminGuard>} />
-              <Route path="reports" element={<AdminGuard><ReportsPage /></AdminGuard>} />
-              <Route path="grievances" element={<AdminGuard><GrievancesPage /></AdminGuard>} />
-              <Route path="sensors" element={<AdminGuard><SensorsPage /></AdminGuard>} />
-              <Route path="settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
+              {/* Application Portal Routes */}
+              <Route path="/app" element={<AppLayout />}>
+                <Route index element={<AppIndexRedirect />} />
 
-              {/* Citizen & Public Pages */}
-              <Route path="citizen" element={<CitizenDashboardPage />} />
-              <Route path="complaint" element={<CitizenComplaintPage />} />
-              <Route path="check-noise" element={<CitizenCheckNoisePage />} />
-              <Route path="guidelines" element={<CitizenGuidelinesPage />} />
-            </Route>
+                {/* Admin Core Pages (Protected: requires Officer / Admin login) */}
+                <Route path="dashboard" element={<AdminGuard><DashboardPage /></AdminGuard>} />
+                <Route path="analyze" element={<AdminGuard><AnalyzePage /></AdminGuard>} />
+                <Route path="map" element={<MapPage />} />
+                <Route path="compliance" element={<AdminGuard><CompliancePage /></AdminGuard>} />
+                <Route path="grievances" element={<AdminGuard><GrievancesPage /></AdminGuard>} />
+                <Route path="analytics" element={<AdminGuard><AnalyticsPage /></AdminGuard>} />
+                <Route path="reports" element={<AdminGuard><ReportsPage /></AdminGuard>} />
+                <Route path="sensors" element={<AdminGuard><SensorsPage /></AdminGuard>} />
+                <Route path="settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+                {/* Citizen & Public Pages */}
+                <Route path="citizen" element={<CitizenDashboardPage />} />
+                <Route path="complaint" element={<CitizenComplaintPage />} />
+                <Route path="check-noise" element={<CitizenCheckNoisePage />} />
+                <Route path="guidelines" element={<CitizenGuidelinesPage />} />
+              </Route>
+
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </Router>
       </AuthProvider>
     </ThemeProvider>

@@ -7,6 +7,7 @@ from app.database.connection import get_db
 from app.database.models import ComplianceRule, ComplianceAssessment, Measurement
 from app.schemas.schemas import ComplianceRuleResponse, ComplianceCheckRequest, ComplianceAssessmentResponse
 from app.compliance.india_rules import determine_time_period
+from app.dependencies import require_officer
 
 router = APIRouter(prefix="/compliance", tags=["Compliance Engine"])
 
@@ -56,18 +57,21 @@ def check_compliance(req: ComplianceCheckRequest, db: Session = Depends(get_db))
     )
 
 @router.get("/assessments")
-def get_assessments(db: Session = Depends(get_db)):
+def get_assessments(db: Session = Depends(get_db), user=Depends(require_officer)):
     assessments = db.query(ComplianceAssessment).order_by(
         ComplianceAssessment.assessment_timestamp.desc()
     ).limit(30).all()
-    
+
     results = []
     for a in assessments:
         source_name = "Acoustic Sample"
-        if a.measurement and a.measurement.sensor:
-            source_name = f"{a.measurement.sensor.sensor_name} ({a.measurement.sensor.location_name})"
-        elif a.measurement and a.measurement.audio_file:
-            source_name = f"Upload: {a.measurement.audio_file.original_filename}"
+        cal_status = "uncalibrated"
+        if a.measurement:
+            cal_status = a.measurement.calibration_status or "uncalibrated"
+            if a.measurement.sensor:
+                source_name = f"{a.measurement.sensor.sensor_name} ({a.measurement.sensor.location_name})"
+            elif a.measurement.audio_file:
+                source_name = f"Upload: {a.measurement.audio_file.original_filename}"
 
         results.append({
             "id": a.id,
@@ -78,6 +82,7 @@ def get_assessments(db: Session = Depends(get_db)):
             "threshold_db": a.threshold_db,
             "outcome": a.outcome,
             "exceedance_amount": a.exceedance_amount,
+            "calibration_status": cal_status,
             "notes": a.notes,
             "timestamp": a.assessment_timestamp.isoformat() if a.assessment_timestamp else None
         })

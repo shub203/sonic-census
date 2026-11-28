@@ -114,28 +114,28 @@ export const DashboardPage = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 border border-sand bg-paper divide-y lg:divide-y-0 lg:divide-x divide-sand">
         <Stat
           label="Average Valid LAeq"
-          value={summary?.average_valid_laeq || 59.4}
+          value={summary?.average_valid_laeq ?? 0}
           unit="dB(A)"
           decimalPlaces={1}
-          meta="Energy-averaged across 8 nodes"
+          meta={`Energy-averaged across ${summary?.total_sensors ?? sensors.length} nodes`}
         />
         <Stat
           label="Potential Exceedances"
-          value={summary?.potential_exceedances || 14}
+          value={summary?.potential_exceedances ?? 0}
           unit="events"
-          meta="Past 24-hr CPCB limit audits"
+          meta="CPCB statutory limit audits"
         />
         <Stat
           label="Detected Sound Events"
-          value={summary?.detected_sound_events || 1842}
+          value={summary?.detected_sound_events ?? 0}
           unit="classified"
-          meta="PANNs AudioSet taxonomy"
+          meta="DSP-v2 / AudioSet taxonomy"
         />
         <Stat
           label="Active Field Sensors"
-          value={summary?.active_sensors || 8}
-          unit="/ 8 online"
-          meta="Delhi, Mumbai, Bengaluru, Hyd"
+          value={summary?.active_sensors ?? sensors.length}
+          unit={`/ ${summary?.total_sensors ?? sensors.length} online`}
+          meta="Delhi, Mumbai, Bengaluru, Hyd, Chn"
         />
       </div>
 
@@ -460,7 +460,7 @@ export const DashboardPage = () => {
           </div>
 
           <div className="flex items-center justify-between text-[10px] font-mono text-graphite pt-1">
-            <span>8 Registered Field Stations</span>
+            <span>{summary?.total_sensors ?? sensors.length} Registered Field Stations</span>
             <span>OSM Muted Cartography</span>
           </div>
         </div>

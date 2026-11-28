@@ -185,7 +185,7 @@ async def upload_audio(
 
 
 @router.get("")
-def list_audio_files(db: Session = Depends(get_db)):
+def list_audio_files(db: Session = Depends(get_db), user=Depends(require_officer)):
     manifest = AudioService.list_vault_entries(db, limit=50)
     return [
         {

@@ -96,14 +96,12 @@ async def request_observability_middleware(request: Request, call_next):
     return response
 
 
-# Mount static asset directories
+# Keep spectrogram directory ready for fallback; audio/reports are served via guarded API endpoints
 os.makedirs(settings.UPLOAD_DIRECTORY, exist_ok=True)
 os.makedirs(settings.REPORTS_DIRECTORY, exist_ok=True)
 os.makedirs(settings.SPECTROGRAMS_DIRECTORY, exist_ok=True)
 
 app.mount("/static/spectrograms", StaticFiles(directory=settings.SPECTROGRAMS_DIRECTORY), name="spectrograms")
-app.mount("/static/reports", StaticFiles(directory=settings.REPORTS_DIRECTORY), name="reports")
-app.mount("/static/uploads", StaticFiles(directory=settings.UPLOAD_DIRECTORY), name="uploads")
 
 # Mount API v1 router
 app.include_router(api_router, prefix=settings.API_V1_STR)

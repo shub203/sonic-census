@@ -581,29 +581,26 @@ export const api = {
    */
   async getDashboardSummary() {
     if (USE_REAL_BACKEND) {
-      try {
-        const res = await client.get('/dashboard/summary');
-        const b = res.data;
-        return {
-          ...MOCK_DASHBOARD_SUMMARY,
-          ...b,
-          average_valid_laeq: typeof b.average_laeq === 'number' ? b.average_laeq : MOCK_DASHBOARD_SUMMARY.average_valid_laeq,
-          potential_exceedances: typeof b.total_exceedances === 'number' ? b.total_exceedances : MOCK_DASHBOARD_SUMMARY.potential_exceedances,
-          detected_sound_events: typeof b.total_sound_events === 'number' ? b.total_sound_events : MOCK_DASHBOARD_SUMMARY.detected_sound_events,
-          active_sensors: typeof b.active_sensors === 'number' ? b.active_sensors : MOCK_DASHBOARD_SUMMARY.active_sensors,
-          category_breakdown: Array.isArray(b.category_breakdown) && b.category_breakdown.length > 0
-            ? b.category_breakdown.map((c) => ({
-                ...c,
-                status: c.category === 'Construction' || c.category === 'Industrial' ? 'loud' : c.category === 'Traffic' ? 'moderate' : 'quiet'
-              }))
-            : MOCK_DASHBOARD_SUMMARY.category_breakdown,
-          recent_alerts: MOCK_DASHBOARD_SUMMARY.recent_alerts,
-          noise_clock: MOCK_DASHBOARD_SUMMARY.noise_clock
-        };
-      } catch (err) {
-        console.warn('Backend summary request failed, falling back to mock:', err);
-        return MOCK_DASHBOARD_SUMMARY;
-      }
+      const res = await client.get('/dashboard/summary');
+      const b = res.data || {};
+      return {
+        ...b,
+        average_valid_laeq: typeof b.average_laeq === 'number' ? b.average_laeq : 0,
+        potential_exceedances: typeof b.total_exceedances === 'number' ? b.total_exceedances : 0,
+        detected_sound_events: typeof b.total_sound_events === 'number' ? b.total_sound_events : 0,
+        active_sensors: typeof b.active_sensors === 'number' ? b.active_sensors : 0,
+        total_sensors: typeof b.total_sensors === 'number' ? b.total_sensors : 0,
+        category_breakdown: Array.isArray(b.category_breakdown)
+          ? b.category_breakdown.map((c) => ({
+              ...c,
+              status: c.category === 'Construction' || c.category === 'Industrial' || c.category === 'Emergency'
+                ? 'loud'
+                : c.category === 'Traffic' ? 'moderate' : 'quiet'
+            }))
+          : [],
+        recent_alerts: Array.isArray(b.recent_alerts) ? b.recent_alerts : [],
+        noise_clock: Array.isArray(b.noise_clock) ? b.noise_clock : []
+      };
     }
     await delay(150);
     return MOCK_DASHBOARD_SUMMARY;
@@ -698,6 +695,34 @@ export const api = {
     }
     await delay(160);
     return MOCK_TRENDS;
+  },
+
+  async getAnalyticsCategories() {
+    if (USE_REAL_BACKEND) {
+      const res = await client.get('/analytics/categories');
+      return Array.isArray(res.data) ? res.data : [];
+    }
+    return [
+      { name: 'Traffic', value: 642, percentage: 34.8, color: '#E4572E' },
+      { name: 'Human activity', value: 388, percentage: 21.1, color: '#2F6F63' },
+      { name: 'Construction', value: 312, percentage: 16.9, color: '#E4572E' },
+    ];
+  },
+
+  async getAnalyticsLocations() {
+    if (USE_REAL_BACKEND) {
+      const res = await client.get('/analytics/locations');
+      return Array.isArray(res.data) ? res.data : [];
+    }
+    return [];
+  },
+
+  async getComplianceAssessments() {
+    if (USE_REAL_BACKEND) {
+      const res = await client.get('/compliance/assessments');
+      return Array.isArray(res.data) ? res.data : [];
+    }
+    return [];
   },
 
   /**
@@ -860,26 +885,55 @@ export const api = {
    */
   async getReportsList() {
     if (USE_REAL_BACKEND) {
-      try {
-        const res = await client.get('/reports');
-        const list = Array.isArray(res.data) ? res.data : [];
-        if (list.length > 0) {
-          return list.map((r) => ({
-            ...r,
-            title: r.title || `${r.report_type || 'Acoustic Monitoring Audit'} — ${r.location || 'Cluster Zone'}`,
-            type: r.type || r.report_type || 'Daily Environmental Monitoring',
-            file_format: r.file_format || 'PDF',
-            file_size_kb: r.file_size_kb || (r.file_format === 'CSV' ? 12 : 48),
-            generated_at: r.generated_at ? r.generated_at.slice(0, 19).replace('T', ' ') : '2026-11-18 10:00:00',
-            download_url: r.id ? `${API_BASE_URL}/reports/${r.id}/download` : null
-          }));
-        }
-      } catch (err) {
-        console.warn('Backend /reports failed, falling back to mock:', err);
-      }
+      const res = await client.get('/reports');
+      const list = Array.isArray(res.data) ? res.data : [];
+      return list.map((r) => ({
+        ...r,
+        title: r.title || `${r.report_type || 'Acoustic Monitoring Audit'} — ${r.location || 'Cluster Zone'}`,
+        type: r.type || r.report_type || 'Daily Environmental Monitoring',
+        file_format: r.file_format || 'PDF',
+        file_size_kb: r.file_size_kb || (r.file_format === 'CSV' ? 12 : 48),
+        generated_at: r.generated_at ? r.generated_at.slice(0, 19).replace('T', ' ') : '2026-11-18 10:00:00',
+        download_url: r.id ? `${API_BASE_URL}/reports/${r.id}/download` : null
+      }));
     }
     await delay(120);
     return MOCK_REPORTS;
+  },
+
+  async downloadReport(report) {
+    if (!report?.id) throw new Error('Missing report ID');
+    if (USE_REAL_BACKEND) {
+      const res = await client.get(`/reports/${report.id}/download`, { responseType: 'blob' });
+      const ext = (report.file_format || 'pdf').toLowerCase();
+      const resolvedName = extractFilenameFromDisposition(
+        res.headers?.['content-disposition'],
+        `sonic_census_report_${report.id.slice(0, 8)}.${ext}`
+      );
+      triggerBrowserDownload(res.data, resolvedName);
+      return resolvedName;
+    }
+    const content = `Sonic Census Statutory Audit Report\nID: ${report.id}\nTitle: ${report.title}\nTerritory: ${report.location}\nFormat: ${report.file_format}\n`;
+    triggerBrowserDownload(new Blob([content], { type: 'text/plain;charset=utf-8' }), `${report.id}.txt`);
+    return `${report.id}.txt`;
+  },
+
+  async submitContactInquiry(payload) {
+    if (USE_REAL_BACKEND) {
+      const res = await client.post('/contact', payload);
+      return res.data;
+    }
+    await delay(150);
+    return { id: `cnt-${Date.now()}`, ...payload, status: 'received' };
+  },
+
+  async updateProfile(name) {
+    if (USE_REAL_BACKEND) {
+      const res = await client.patch('/auth/me', { name });
+      if (res.data) localStorage.setItem('noise_user', JSON.stringify(res.data));
+      return res.data;
+    }
+    return null;
   },
 
   async changePassword(current_password, new_password) {

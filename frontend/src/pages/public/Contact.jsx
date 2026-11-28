@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Send, CheckCircle2 } from 'lucide-react';
+import { Send, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { api } from '../../api';
 
 export const Contact = () => {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [form, setForm] = useState({
     name: '',
     organization: '',
@@ -11,9 +14,25 @@ export const Contact = () => {
     message: ''
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (submitting) return;
+    setErrorMsg(null);
+    setSubmitting(true);
+    try {
+      await api.submitContactInquiry({
+        name: form.name,
+        organization: form.organization,
+        email: form.email,
+        inquiry_type: form.inquiryType,
+        message: form.message,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setErrorMsg(err?.response?.data?.detail || 'Unable to submit inquiry. Please verify inputs and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -43,6 +62,12 @@ export const Contact = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 text-xs font-mono">
+              {errorMsg && (
+                <div className="p-3 border border-loud bg-loud/10 text-loud flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] uppercase text-graphite mb-1">Full Name & Rank:</label>
                 <input
@@ -107,10 +132,11 @@ export const Contact = () => {
 
               <button
                 type="submit"
-                className="w-full py-2.5 border border-ink bg-ink text-paper text-xs font-mono uppercase tracking-wider hover:bg-ink-light transition-colors flex items-center justify-center gap-2"
+                disabled={submitting}
+                className="w-full py-2.5 border border-ink bg-ink text-paper text-xs font-mono uppercase tracking-wider hover:bg-ink-light transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Send className="w-3.5 h-3.5" strokeWidth={1.5} />
-                <span>Submit Technical Query</span>
+                <span>{submitting ? 'Submitting Inquiry...' : 'Submit Technical Query'}</span>
               </button>
             </form>
           )}

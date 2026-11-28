@@ -20,15 +20,28 @@ export const ReportsPage = () => {
   const [period, setPeriod] = useState('Last 24 Hours');
   const [location, setLocation] = useState('Delhi NCR Metropolitan Cluster');
   const [reportsList, setReportsList] = useState([]);
+  const [previewSensors, setPreviewSensors] = useState([]);
   const [generating, setGenerating] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [generatedToast, setGeneratedToast] = useState(null);
 
   useEffect(() => {
-    api.getReportsList().then(data => setReportsList(data));
+    Promise.all([
+      api.getReportsList().catch((err) => {
+        setErrorMsg(err?.response?.data?.detail || 'Unable to load reports archive.');
+        return [];
+      }),
+      api.getMapSensors().catch(() => []),
+    ]).then(([reps, sens]) => {
+      setReportsList(reps || []);
+      setPreviewSensors((sens || []).slice(0, 4));
+    });
   }, []);
 
   const handleGenerate = async (format) => {
     setGenerating(true);
+    setErrorMsg(null);
     try {
       const newRep = await api.generateReport({
         report_type: reportType,
@@ -40,9 +53,21 @@ export const ReportsPage = () => {
       setGeneratedToast(`Compiled and certified ${format} report: ${newRep.id}`);
       setTimeout(() => setGeneratedToast(null), 4000);
     } catch (err) {
-      console.error('Report error:', err);
+      setErrorMsg(err?.response?.data?.detail || err?.message || 'Report generation failed.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleDownloadReport = async (report) => {
+    setDownloadingId(report.id);
+    setErrorMsg(null);
+    try {
+      await api.downloadReport(report);
+    } catch (err) {
+      setErrorMsg(err?.response?.data?.detail || 'Failed to download report file.');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -63,6 +88,12 @@ export const ReportsPage = () => {
           <span className="text-[10px] font-mono text-graphite">CPCB Schedule Format</span>
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="p-3 border border-loud bg-loud/10 text-loud text-xs font-mono">
+          {errorMsg}
+        </div>
+      )}
 
       {generatedToast && (
         <div className="p-3 border border-ink bg-paper-light text-xs font-mono flex items-center justify-between animate-fade-in">
@@ -211,24 +242,29 @@ export const ReportsPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-sand">
-                  <tr>
-                    <td className="py-1.5 px-2 text-ink">Commercial (CP)</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">63.8 dB(A)</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">65.0 dB</td>
-                    <td className="py-1.5 px-2 text-center text-quiet font-bold">Within limit</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 px-2 text-ink">Silence (AIIMS)</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums text-loud font-bold">54.2 dB(A)</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">50.0 dB</td>
-                    <td className="py-1.5 px-2 text-center text-loud font-bold">Exceedance (+4.2)</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 px-2 text-ink">Residential (Rohini)</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">51.2 dB(A)</td>
-                    <td className="py-1.5 px-2 text-right tabular-nums">55.0 dB</td>
-                    <td className="py-1.5 px-2 text-center text-quiet font-bold">Within limit</td>
-                  </tr>
+                  {previewSensors.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-2 px-2 text-graphite">
+                        Station summary rows will populate from PostgreSQL telemetry upon compilation.
+                      </td>
+                    </tr>
+                  ) : previewSensors.map((s) => {
+                    const laeq = typeof s.current_laeq === 'number' ? s.current_laeq : 55.0;
+                    const limit = s.zone_type === 'Industrial' ? 75 : s.zone_type === 'Commercial' ? 65 : s.zone_type === 'Silence' ? 50 : 55;
+                    const exceeded = laeq > limit;
+                    return (
+                      <tr key={s.id}>
+                        <td className="py-1.5 px-2 text-ink">{s.sensor_name} ({s.zone_type})</td>
+                        <td className={`py-1.5 px-2 text-right tabular-nums ${exceeded ? 'text-loud font-bold' : ''}`}>
+                          {laeq.toFixed(1)} dB(A)
+                        </td>
+                        <td className="py-1.5 px-2 text-right tabular-nums">{limit.toFixed(1)} dB</td>
+                        <td className={`py-1.5 px-2 text-center font-bold ${exceeded ? 'text-loud' : 'text-quiet'}`}>
+                          {exceeded ? `Exceedance (+${(laeq - limit).toFixed(1)})` : 'Within limit'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -269,7 +305,13 @@ export const ReportsPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-sand">
-              {reportsList.map((r) => (
+              {reportsList.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-4 text-center text-graphite">
+                    No compiled statutory reports in archive yet. Use Configure Report Parameters above to generate a PDF or CSV.
+                  </td>
+                </tr>
+              ) : reportsList.map((r) => (
                 <tr key={r.id} className="hover:bg-sand-light transition-colors">
                   <td className="py-2.5 font-bold text-ink">{r.id}</td>
                   <td className="py-2.5">
@@ -284,29 +326,15 @@ export const ReportsPage = () => {
                     </span>
                   </td>
                   <td className="py-2.5 text-right">
-                    <a
-                      href={r.download_url && !r.download_url.startsWith('#') ? r.download_url : '#'}
-                      target={r.download_url && !r.download_url.startsWith('#') ? '_blank' : undefined}
-                      rel="noopener noreferrer"
-                      download={`${r.id}.${(r.file_format || 'pdf').toLowerCase()}`}
-                      onClick={(e) => {
-                        if (!r.download_url || r.download_url.startsWith('#')) {
-                          e.preventDefault();
-                          const content = `Sonic Census Statutory Audit Report\nID: ${r.id}\nTitle: ${r.title}\nTerritory: ${r.location}\nFormat: ${r.file_format}\nGenerated: ${r.generated_at}\n`;
-                          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                          const url = URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = `${r.id}.txt`;
-                          link.click();
-                          URL.revokeObjectURL(url);
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-ink hover:underline border border-sand px-2 py-1 bg-paper-light hover:border-ink"
+                    <button
+                      type="button"
+                      disabled={downloadingId === r.id}
+                      onClick={() => handleDownloadReport(r)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-ink hover:underline border border-sand px-2 py-1 bg-paper-light hover:border-ink disabled:opacity-50"
                     >
                       <Download className="w-3 h-3" strokeWidth={1.5} />
-                      <span>{r.file_format}</span>
-                    </a>
+                      <span>{downloadingId === r.id ? '...' : r.file_format}</span>
+                    </button>
                   </td>
                 </tr>
               ))}

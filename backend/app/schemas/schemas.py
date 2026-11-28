@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
+
 
 # --- AUTH SCHEMAS ---
 class UserRegister(BaseModel):
@@ -15,29 +16,37 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
+class UserProfileUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+
+
 class UserRoleUpdateRequest(BaseModel):
     role: str = Field(..., min_length=3, max_length=30)
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     name: str
     email: str
     role: str
     created_at: datetime
-    class Config:
-        from_attributes = True
+
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
 
+
 # --- SOUND EVENT SCHEMAS ---
 class SoundEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     audio_file_id: Optional[str] = None
     sensor_id: Optional[str] = None
@@ -47,11 +56,11 @@ class SoundEventResponse(BaseModel):
     end_time: float
     model_name: str
     created_at: datetime
-    class Config:
-        from_attributes = True
+
 
 # --- AUDIO SCHEMAS ---
 class AudioFileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     original_filename: str
     file_format: str
@@ -65,8 +74,7 @@ class AudioFileResponse(BaseModel):
     spectrogram_path: Optional[str] = None
     uploaded_at: datetime
     sound_events: List[SoundEventResponse] = []
-    class Config:
-        from_attributes = True
+
 
 # --- SENSOR SCHEMAS ---
 class SensorCreate(BaseModel):
@@ -77,7 +85,9 @@ class SensorCreate(BaseModel):
     zone_type: Optional[str] = "Residential"
     sensor_type: Optional[str] = "IoT Acoustic Node"
 
+
 class SensorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     sensor_name: str
     location_name: str
@@ -89,8 +99,7 @@ class SensorResponse(BaseModel):
     calibration_date: Optional[date] = None
     last_seen: Optional[datetime] = None
     latest_laeq: Optional[float] = None
-    class Config:
-        from_attributes = True
+
 
 class ReadingIngest(BaseModel):
     laeq: float
@@ -103,8 +112,10 @@ class ReadingIngest(BaseModel):
 class SensorApiKeyCreate(BaseModel):
     label: str = Field("Primary IoT Gateway", min_length=2, max_length=100)
 
+
 # --- MEASUREMENT SCHEMAS ---
 class MeasurementResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     sensor_id: Optional[str] = None
     audio_file_id: Optional[str] = None
@@ -116,11 +127,11 @@ class MeasurementResponse(BaseModel):
     time_weighting: str
     calibration_status: str
     measurement_uncertainty: Optional[float] = None
-    class Config:
-        from_attributes = True
+
 
 # --- COMPLIANCE SCHEMAS ---
 class ComplianceRuleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     jurisdiction: str
     regulation_name: str
@@ -130,8 +141,7 @@ class ComplianceRuleResponse(BaseModel):
     measurement_metric: str
     source_reference: Optional[str] = None
     active: bool
-    class Config:
-        from_attributes = True
+
 
 class ComplianceCheckRequest(BaseModel):
     laeq: Optional[float] = None
@@ -149,6 +159,7 @@ class ComplianceCheckRequest(BaseModel):
             return float(self.measured_db)
         return 55.0
 
+
 class ComplianceAssessmentResponse(BaseModel):
     assessment_id: str
     zone_type: str
@@ -161,8 +172,10 @@ class ComplianceAssessmentResponse(BaseModel):
     notes: Optional[str] = None
     timestamp: str
 
+
 # --- ALERT SCHEMAS ---
 class AlertResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     sensor_id: Optional[str] = None
     measurement_id: Optional[str] = None
@@ -172,8 +185,7 @@ class AlertResponse(BaseModel):
     status: str
     created_at: datetime
     sensor_name: Optional[str] = None
-    class Config:
-        from_attributes = True
+
 
 # --- REPORT SCHEMAS ---
 class ReportGenerateRequest(BaseModel):
@@ -182,7 +194,9 @@ class ReportGenerateRequest(BaseModel):
     location: str = "All Monitoring Zones"
     file_format: str = "PDF"
 
+
 class ReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     report_type: str
     reporting_period: str
@@ -191,5 +205,24 @@ class ReportResponse(BaseModel):
     file_path: str
     generated_at: datetime
     status: str
-    class Config:
-        from_attributes = True
+
+
+# --- CONTACT INQUIRY SCHEMAS ---
+class ContactInquiryCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    organization: str = Field(..., min_length=2, max_length=180)
+    email: EmailStr
+    inquiry_type: str = Field("Municipal Monitoring Deployment", min_length=2, max_length=120)
+    message: str = Field(..., min_length=5, max_length=3000)
+
+
+class ContactInquiryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    organization: str
+    email: str
+    inquiry_type: str
+    message: str
+    status: str
+    created_at: datetime

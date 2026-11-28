@@ -300,7 +300,16 @@ def test_commercial_security_and_blob_persistence():
     )
     assert st_after_rev == 401
 
-    # 3. Generated report persists inside DB even if disk file is deleted
+    # Generated report endpoints require Officer RBAC and persist inside DB even if disk file is deleted
+    st_rlist_unauth, _ = _json_call("GET", "/api/v1/reports")
+    assert st_rlist_unauth == 401
+    st_meas_unauth, _ = _json_call("GET", "/api/v1/measurements")
+    assert st_meas_unauth == 401
+    st_ass_unauth, _ = _json_call("GET", "/api/v1/compliance/assessments")
+    assert st_ass_unauth == 401
+    st_alist_unauth, _ = _json_call("GET", "/api/v1/audio")
+    assert st_alist_unauth == 401
+
     st_rep, rep = _json_call(
         "POST",
         "/api/v1/reports/generate",
@@ -311,11 +320,30 @@ def test_commercial_security_and_blob_persistence():
     disk_file = os.path.join("generated_reports", os.path.basename(rep["file_path"]))
     if os.path.exists(disk_file):
         os.remove(disk_file)
-    st_rdl, rdl_bytes = _asgi_call("GET", f"/api/v1/reports/{rep['id']}/download")
+    st_rdl_unauth, _ = _asgi_call("GET", f"/api/v1/reports/{rep['id']}/download")
+    assert st_rdl_unauth == 401
+    st_rdl, rdl_bytes = _asgi_call(
+        "GET",
+        f"/api/v1/reports/{rep['id']}/download",
+        headers={"Authorization": f"Bearer {off_tok}"},
+    )
     assert st_rdl == 200 and b"Sonic Census" in rdl_bytes
 
-    # 4. Audit logs & storage stats accessible to officer
+    # 4. Audit logs, storage stats, and contact inquiry
     st_aud, audit_rows = _json_call("GET", "/api/v1/admin/audit-logs?limit=20", headers={"Authorization": f"Bearer {off_tok}"})
     assert st_aud == 200 and len(audit_rows) >= 1
     st_stats, stats = _json_call("GET", "/api/v1/admin/storage-stats", headers={"Authorization": f"Bearer {off_tok}"})
     assert st_stats == 200 and "vault_quota_mb" in stats
+
+    st_cnt, cnt = _json_call(
+        "POST",
+        "/api/v1/contact",
+        {
+            "name": "Dr. Test",
+            "organization": "CPCB Lab",
+            "email": "lab@example.com",
+            "inquiry_type": "API Integration",
+            "message": "Verifying contact inquiry persistence.",
+        },
+    )
+    assert st_cnt == 200 and cnt["status"] == "received"

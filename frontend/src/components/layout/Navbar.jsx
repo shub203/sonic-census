@@ -114,7 +114,7 @@ export const Navbar = () => {
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-2">
             <Link
-              to="/login"
+              to={user ? (isAdmin ? '/app/dashboard' : '/app/citizen') : '/login'}
               className="px-4 py-1.5 border border-ink bg-ink text-paper text-xs font-mono uppercase tracking-wider hover:bg-ink-light transition-colors flex items-center gap-1.5"
             >
               <span>{user ? (isAdmin ? 'Dashboard' : 'My Portal') : 'Login'}</span>
@@ -149,7 +149,7 @@ export const Navbar = () => {
           ))}
           <div className="pt-2 border-t border-sand">
             <Link
-              to="/login"
+              to={user ? (isAdmin ? '/app/dashboard' : '/app/citizen') : '/login'}
               onClick={() => setMobileOpen(false)}
               className="block w-full text-center py-2 border border-ink bg-ink text-paper font-mono uppercase text-xs tracking-wider"
             >

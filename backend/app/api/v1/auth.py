@@ -9,6 +9,7 @@ from app.schemas.schemas import (
     UserResponse,
     TokenResponse,
     ChangePasswordRequest,
+    UserProfileUpdateRequest,
     UserRoleUpdateRequest,
 )
 from app.dependencies import (
@@ -102,6 +103,27 @@ def login(login_data: UserLogin, request: Request, db: Session = Depends(get_db)
 
 @router.get("/me", response_model=UserResponse)
 def get_current_user_profile(user: User = Depends(require_current_user)):
+    return user
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_current_user_profile(
+    payload: UserProfileUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_current_user),
+):
+    user.name = payload.name.strip()
+    db.commit()
+    db.refresh(user)
+    AuditService.log_event(
+        db=db,
+        action="auth.profile_update",
+        resource_type="user",
+        resource_id=user.id,
+        actor=user,
+        request=request,
+    )
     return user
 
 

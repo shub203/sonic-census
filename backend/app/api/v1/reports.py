@@ -42,12 +42,12 @@ def generate_report(
     return report
 
 @router.get("", response_model=List[ReportResponse])
-def list_reports(db: Session = Depends(get_db)):
+def list_reports(db: Session = Depends(get_db), user=Depends(require_officer)):
     reports = db.query(Report).order_by(Report.generated_at.desc()).all()
     return reports
 
 @router.get("/{id}/download")
-def download_report(id: str, db: Session = Depends(get_db)):
+def download_report(id: str, db: Session = Depends(get_db), user=Depends(require_officer)):
     report = db.query(Report).filter(Report.id == id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")

@@ -25,73 +25,30 @@ export const CompliancePage = () => {
   const [isCalibrated, setIsCalibrated] = useState(true);
   const [evaluation, setEvaluation] = useState(null);
 
-  // Recent Assessments Log
-  const [recentAssessments, setRecentAssessments] = useState([
-    {
-      id: 'ASM-901',
-      timestamp: '2026-11-17 16:30 IST',
-      location: 'Connaught Place Inner Circle',
-      zone: 'Commercial',
-      period: 'Day (06:00–22:00)',
-      measured_db: 63.8,
-      limit_db: 65.0,
-      margin: -1.2,
-      status: 'Within limit',
-      level: 'quiet'
-    },
-    {
-      id: 'ASM-902',
-      timestamp: '2026-11-17 15:45 IST',
-      location: 'AIIMS Hospital Perimeter',
-      zone: 'Silence',
-      period: 'Day (06:00–22:00)',
-      measured_db: 54.2,
-      limit_db: 50.0,
-      margin: 4.2,
-      status: 'Potential exceedance',
-      level: 'loud'
-    },
-    {
-      id: 'ASM-903',
-      timestamp: '2026-11-17 14:10 IST',
-      location: 'Sector 9 Rohini',
-      zone: 'Residential',
-      period: 'Day (06:00–22:00)',
-      measured_db: 51.2,
-      limit_db: 55.0,
-      margin: -3.8,
-      status: 'Within limit',
-      level: 'quiet'
-    },
-    {
-      id: 'ASM-904',
-      timestamp: '2026-11-17 03:15 IST',
-      location: 'Whitefield Tech Corridor',
-      zone: 'Commercial',
-      period: 'Night (22:00–06:00)',
-      measured_db: 58.6,
-      limit_db: 55.0,
-      margin: 3.6,
-      status: 'Potential exceedance',
-      level: 'loud'
-    },
-    {
-      id: 'ASM-905',
-      timestamp: '2026-11-17 01:20 IST',
-      location: 'Dharavi Industrial Complex',
-      zone: 'Industrial',
-      period: 'Night (22:00–06:00)',
-      measured_db: null,
-      limit_db: 70.0,
-      margin: null,
-      status: 'Uncalibrated / Insufficient data',
-      level: 'uncalibrated'
-    }
-  ]);
+  // Recent Assessments Log (loaded from PostgreSQL /compliance/assessments)
+  const [recentAssessments, setRecentAssessments] = useState([]);
 
   useEffect(() => {
-    api.getComplianceRules().then(data => {
-      setRules(data);
+    Promise.all([
+      api.getComplianceRules(),
+      api.getComplianceAssessments().catch(() => [])
+    ]).then(([rulesData, assessData]) => {
+      setRules(rulesData);
+      const mapped = (assessData || []).map((a) => ({
+        id: (a.id || '').slice(0, 8).toUpperCase(),
+        timestamp: a.timestamp ? a.timestamp.slice(0, 19).replace('T', ' ') : 'Recent',
+        location: a.source || 'Acoustic Sensor',
+        zone: a.zone_type || 'Residential',
+        period: a.time_period === 'Night' ? 'Night (22:00–06:00)' : 'Day (06:00–22:00)',
+        measured_db: typeof a.measured_laeq === 'number' ? a.measured_laeq : null,
+        limit_db: typeof a.threshold_db === 'number' ? a.threshold_db : 55.0,
+        margin: typeof a.exceedance_amount === 'number' ? a.exceedance_amount : 0,
+        status: a.outcome === 'potential_exceedance' ? 'Potential exceedance' : 'Within limit',
+        level: a.calibration_status === 'uncalibrated'
+          ? 'uncalibrated'
+          : (a.outcome === 'potential_exceedance' ? 'loud' : 'quiet'),
+      }));
+      setRecentAssessments(mapped);
       setLoading(false);
     });
   }, []);

@@ -69,6 +69,22 @@ def get_noise_map_data(
         for a in all_assess:
             assessment_map[a.measurement_id] = a
 
+    # Fetch recent measurements for sparklines from DB instead of synthetic offsets
+    recent_by_sensor = {sid: [] for sid in sensor_ids}
+    if sensor_ids:
+        recent_rows = (
+            db.query(Measurement.sensor_id, Measurement.laeq)
+            .filter(Measurement.sensor_id.in_(sensor_ids), Measurement.laeq.isnot(None))
+            .order_by(Measurement.timestamp.desc())
+            .limit(max(20, len(sensor_ids) * 7))
+            .all()
+        )
+        for sid, val in recent_rows:
+            if len(recent_by_sensor[sid]) < 7:
+                recent_by_sensor[sid].append(round(float(val), 1))
+        for sid in recent_by_sensor:
+            recent_by_sensor[sid].reverse()
+
     map_features = []
 
     for s in sensors:
@@ -103,15 +119,7 @@ def get_noise_map_data(
                 marker_color = "#f59e0b" # Yellow
 
         base_laeq = laeq if laeq is not None else 55.0
-        recent_trend = [
-            round(base_laeq - 2.1, 1),
-            round(base_laeq - 1.2, 1),
-            round(base_laeq + 0.8, 1),
-            round(base_laeq - 0.4, 1),
-            round(base_laeq + 1.5, 1),
-            round(base_laeq - 0.2, 1),
-            round(base_laeq, 1)
-        ]
+        real_trend = recent_by_sensor.get(s.id) or [round(base_laeq, 1)]
 
         map_features.append({
             "id": s.id,
@@ -128,10 +136,10 @@ def get_noise_map_data(
             "color": marker_color,
             "sound_category": category,
             "predominant_category": category,
-            "sensor_type": "IoT Class 1 Precision Sound Monitor",
-            "calibration_date": "2026-09-12",
+            "sensor_type": s.sensor_type or "IoT Class 1 Precision Sound Monitor",
+            "calibration_date": s.calibration_date.isoformat() if s.calibration_date else "Uncalibrated",
             "status": s.status or "active",
-            "recent_trend": recent_trend,
+            "recent_trend": real_trend,
             "confidence": latest_event.confidence_score if latest_event else 0.85,
             "last_updated": s.last_seen.isoformat() if s.last_seen else None
         })

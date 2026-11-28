@@ -12,46 +12,56 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"])
 @router.get("/trends")
 def get_noise_trends(db: Session = Depends(get_db)):
     """
-    Returns time series trends over a 24-hour cycle and past 7 days.
+    Returns time series trends over a 24-hour cycle and past 7 days aggregated from stored measurements.
     """
-    avg_val = db.query(func.avg(Measurement.laeq)).filter(Measurement.laeq != None).scalar()
-    base_avg = round(float(avg_val), 1) if avg_val is not None else 53.0
+    rows = db.query(Measurement.timestamp, Measurement.laeq, Measurement.lmax).filter(
+        Measurement.laeq.isnot(None)
+    ).all()
+    vals_all = [float(r[1]) for r in rows if r[1] is not None]
+    base_avg = round(sum(vals_all) / len(vals_all), 1) if vals_all else 53.0
 
-    # 24-hour cycle (hours 00 to 23)
+    hourly_buckets = {h: [] for h in range(24)}
+    weekday_buckets = {d: [] for d in range(7)}
+    weekday_peaks = {d: [] for d in range(7)}
+
+    for ts, laeq, lmax in rows:
+        if not ts or laeq is None:
+            continue
+        hourly_buckets[ts.hour].append(float(laeq))
+        wd = ts.weekday()
+        weekday_buckets[wd].append(float(laeq))
+        weekday_peaks[wd].append(float(lmax if lmax is not None else laeq + 8.0))
+
+    # 24-hour cycle (hours 00 to 23) using real DB readings per hour when present
     hourly_data = []
     for hour in range(0, 24):
-        # Realistic diurnal pattern: quieter at night (01-05), rising during morning rush (08-10), peak evening (17-20)
-        diurnal_offset = 0.0
-        if 0 <= hour <= 5:
-            diurnal_offset = -8.0
-        elif 6 <= hour <= 8:
-            diurnal_offset = +2.0
-        elif 9 <= hour <= 12:
-            diurnal_offset = +6.0
-        elif 13 <= hour <= 16:
-            diurnal_offset = +3.0
-        elif 17 <= hour <= 21:
-            diurnal_offset = +7.5
+        real_vals = hourly_buckets[hour]
+        if real_vals:
+            val = round(sum(real_vals) / len(real_vals), 1)
         else:
-            diurnal_offset = -3.0
-
-        val = round(max(38.0, base_avg + diurnal_offset), 1)
+            diurnal_offset = -6.0 if 0 <= hour <= 5 else (+5.0 if 8 <= hour <= 20 else -2.0)
+            val = round(max(38.0, base_avg + diurnal_offset), 1)
         hourly_data.append({
             "hour": f"{hour:02d}:00",
             "laeq": val,
             "day_threshold": 55.0,
-            "night_threshold": 45.0
+            "night_threshold": 45.0,
+            "sample_count": len(real_vals),
         })
 
     # 7-day trend
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     weekly_data = []
     for idx, day in enumerate(days):
-        weekend_factor = -2.5 if day in ["Saturday", "Sunday"] else +1.5
+        w_vals = weekday_buckets[idx]
+        p_vals = weekday_peaks[idx]
+        avg_d = round(sum(w_vals) / len(w_vals), 1) if w_vals else round(base_avg + (-2.5 if idx >= 5 else 1.5), 1)
+        peak_d = round(max(p_vals), 1) if p_vals else round(avg_d + 12.0, 1)
         weekly_data.append({
             "day": day,
-            "avg_laeq": round(base_avg + weekend_factor, 1),
-            "peak_laeq": round(base_avg + weekend_factor + 14.0, 1)
+            "avg_laeq": avg_d,
+            "peak_laeq": peak_d,
+            "sample_count": len(w_vals),
         })
 
     return {

@@ -13,6 +13,7 @@ from app.database.models.models import (
     CitizenComplaint,
     SensorApiKey,
     AuditLog,
+    ContactInquiry,
     generate_uuid
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "CitizenComplaint",
     "SensorApiKey",
     "AuditLog",
+    "ContactInquiry",
     "generate_uuid"
 ]

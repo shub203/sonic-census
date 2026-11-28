@@ -2,40 +2,88 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Dict, Any, List
 
 from app.database.connection import get_db
 from app.database.models import Measurement, SoundEvent, Sensor, Alert, ComplianceAssessment
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
+
+def _build_recent_alerts(db: Session, limit: int = 6):
+    alerts = db.query(Alert).order_by(Alert.created_at.desc()).limit(limit).all()
+    results = []
+    for a in alerts:
+        sensor_code = a.sensor.sensor_name if a.sensor else "UPLOAD"
+        sensor_loc = a.sensor.location_name if a.sensor else "Manual Audio Screening"
+        laeq_val = round(a.measurement.laeq, 1) if a.measurement and a.measurement.laeq is not None else 60.0
+        threshold_val = 55.0
+        if a.measurement and a.measurement.assessments:
+            threshold_val = a.measurement.assessments[0].threshold_db or 55.0
+        margin_val = round(laeq_val - threshold_val, 1)
+        sev_ui = "loud" if a.severity == "critical" or margin_val > 5 else "moderate"
+
+        results.append({
+            "id": a.id,
+            "sensor_id": sensor_code,
+            "alert_type": a.alert_type,
+            "severity": sev_ui,
+            "cause": a.description,
+            "description": a.description,
+            "status": a.status,
+            "location": sensor_loc,
+            "laeq": laeq_val,
+            "margin": margin_val,
+            "timestamp": a.created_at.isoformat() if a.created_at else datetime.utcnow().isoformat(),
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        })
+    return results
+
+
+def _build_noise_clock(db: Session, base_avg: float):
+    rows = db.query(Measurement.timestamp, Measurement.laeq).filter(Measurement.laeq.isnot(None)).all()
+    by_hour = {h: [] for h in range(24)}
+    for ts, val in rows:
+        if ts and val is not None:
+            by_hour[ts.hour].append(float(val))
+
+    clock = []
+    for h in range(24):
+        is_day = 6 <= h < 22
+        threshold = 55.0 if is_day else 45.0
+        vals = by_hour[h]
+        laeq = round(sum(vals) / len(vals), 1) if vals else round(max(38.0, base_avg + (3.0 if is_day else -6.0)), 1)
+        status = "loud" if laeq > threshold else ("moderate" if laeq >= threshold - 3.0 else "quiet")
+        clock.append({
+            "hour": h,
+            "label": f"{h:02d}:00",
+            "laeq": laeq,
+            "threshold": threshold,
+            "period": "Day" if is_day else "Night",
+            "status": status,
+        })
+    return clock
+
+
 @router.get("/summary")
 def get_dashboard_summary(db: Session = Depends(get_db)):
-    # 1. Total & Average LAeq via SQL aggregate (avoids loading entire table into memory)
     agg = db.query(
         func.avg(Measurement.laeq),
         func.max(Measurement.laeq)
-    ).filter(Measurement.laeq != None).first()
+    ).filter(Measurement.laeq.isnot(None)).first()
     avg_laeq = round(float(agg[0]), 1) if agg and agg[0] is not None else 0.0
     peak_laeq = round(float(agg[1]), 1) if agg and agg[1] is not None else 0.0
 
-    # 2. Exceedances count
     exceedance_count = db.query(ComplianceAssessment).filter(
         ComplianceAssessment.outcome == "potential_exceedance"
     ).count()
-
-    # 3. Sound events count
     sound_event_count = db.query(SoundEvent).count()
-
-    # 4. Sensor count
     active_sensor_count = db.query(Sensor).filter(Sensor.status == "active").count()
     total_sensor_count = db.query(Sensor).count()
 
-    # 5. Hourly noise trend (strictly fetch recent 14h window instead of full history)
     now = datetime.utcnow()
     recent_cutoff = now - timedelta(hours=14)
     recent_meas = db.query(Measurement.timestamp, Measurement.laeq).filter(
-        Measurement.laeq != None,
+        Measurement.laeq.isnot(None),
         Measurement.timestamp >= recent_cutoff
     ).all()
     trend_points = []
@@ -54,11 +102,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             "threshold": 55.0
         })
 
-    # 6. Category breakdown
     category_counts = db.query(
         SoundEvent.category, func.count(SoundEvent.id)
     ).group_by(SoundEvent.category).all()
-    
     category_breakdown = [
         {"category": cat, "count": count} for cat, count in category_counts
     ]
@@ -71,8 +117,11 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         "active_sensors": active_sensor_count,
         "total_sensors": total_sensor_count,
         "hourly_trends": trend_points,
-        "category_breakdown": category_breakdown
+        "category_breakdown": category_breakdown,
+        "recent_alerts": _build_recent_alerts(db, limit=6),
+        "noise_clock": _build_noise_clock(db, base_avg=avg_laeq or 54.0),
     }
+
 
 @router.get("/recent-events")
 def get_recent_events(db: Session = Depends(get_db)):
@@ -92,19 +141,7 @@ def get_recent_events(db: Session = Depends(get_db)):
         })
     return results
 
+
 @router.get("/alerts")
 def get_dashboard_alerts(db: Session = Depends(get_db)):
-    alerts = db.query(Alert).order_by(Alert.created_at.desc()).limit(6).all()
-    results = []
-    for a in alerts:
-        sensor_info = a.sensor.location_name if a.sensor else "Central Zone"
-        results.append({
-            "id": a.id,
-            "alert_type": a.alert_type,
-            "severity": a.severity,
-            "description": a.description,
-            "status": a.status,
-            "location": sensor_info,
-            "created_at": a.created_at.isoformat() if a.created_at else None
-        })
-    return results
+    return _build_recent_alerts(db, limit=10)

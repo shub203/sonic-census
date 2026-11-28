@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -39,6 +39,7 @@ class ComplaintStatusUpdate(BaseModel):
 
 
 class ComplaintResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     ticket_number: str
     category: str
@@ -54,9 +55,6 @@ class ComplaintResponse(BaseModel):
     officer_notes: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class ComplaintPublicStatusResponse(BaseModel):

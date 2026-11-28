@@ -50,12 +50,15 @@ export const SettingsPage = () => {
     });
   }, []);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     try {
       localStorage.setItem('sonic_census_settings', JSON.stringify(settings));
+      if (USE_REAL_BACKEND && settings.officerName?.trim().length >= 2) {
+        await api.updateProfile(settings.officerName.trim());
+      }
     } catch {
-      // Ignore storage quota errors
+      // Ignore storage quota or network errors for local prefs
     }
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 3000);

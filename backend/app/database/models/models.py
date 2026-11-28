@@ -258,3 +258,16 @@ class AuditLog(Base):
     status_code = Column(Integer, nullable=False, default=200)
     details = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ContactInquiry(Base):
+    __tablename__ = "contact_inquiries"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(120), nullable=False)
+    organization = Column(String(180), nullable=False)
+    email = Column(String(150), nullable=False)
+    inquiry_type = Column(String(120), nullable=False)
+    message = Column(Text, nullable=False)
+    status = Column(String(50), nullable=False, default="received")
+    created_at = Column(DateTime, default=datetime.utcnow)
