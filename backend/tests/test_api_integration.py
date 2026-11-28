@@ -135,6 +135,32 @@ def test_compliance_map_and_complaints():
     assert st_g == 200
     assert g["ticket_number"].startswith("CPCB-NOISE-")
 
+    # Privacy check: unauthenticated GET /complaints returns [] (no PII leaked)
+    st_anon, anon_list = _json_call("GET", "/api/v1/complaints")
+    assert st_anon == 200 and anon_list == []
+
+    # Public ticket status lookup returns redacted view without street location
+    st_trk, trk = _json_call("GET", f"/api/v1/complaints/track/{g['ticket_number']}")
+    assert st_trk == 200 and trk["ticket_number"] == g["ticket_number"]
+    assert "location" not in trk
+
+    # Officer can view, update status, and delete test complaint
+    _, ol_body = _json_call("POST", "/api/v1/auth/login", {"email": "officer@soniccensus.ai", "password": "admin123"})
+    off_tok = ol_body["access_token"]
+    st_all, all_list = _json_call("GET", "/api/v1/complaints", headers={"Authorization": f"Bearer {off_tok}"})
+    assert st_all == 200 and any(row["id"] == g["id"] for row in all_list)
+
+    st_upd, upd = _json_call(
+        "PATCH",
+        f"/api/v1/complaints/{g['id']}/status",
+        {"status": "Under Review", "officer_notes": "Assigned field inspector"},
+        headers={"Authorization": f"Bearer {off_tok}"},
+    )
+    assert st_upd == 200 and upd["status"] == "Under Review" and upd["officer_notes"] == "Assigned field inspector"
+
+    st_del, _ = _json_call("DELETE", f"/api/v1/complaints/{g['id']}", headers={"Authorization": f"Bearer {off_tok}"})
+    assert st_del == 200
+
 
 def test_audio_upload_and_cleanup():
     _, cl_body = _json_call("POST", "/api/v1/auth/login", {"email": "citizen@soniccensus.ai", "password": "citizen123"})

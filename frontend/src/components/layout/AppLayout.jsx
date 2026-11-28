@@ -285,6 +285,7 @@ export const AppLayout = () => {
     { name: 'Analyze Audio', path: '/app/analyze', icon: Mic2 },
     { name: 'Survey Map', path: '/app/map', icon: Map },
     { name: 'Compliance', path: '/app/compliance', icon: ShieldCheck },
+    { name: 'Grievances', path: '/app/grievances', icon: AlertTriangle },
     { name: 'Analytics', path: '/app/analytics', icon: BarChart2 },
     { name: 'Reports', path: '/app/reports', icon: FileText },
     { name: 'Sensors', path: '/app/sensors', icon: Radio },

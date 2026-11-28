@@ -944,6 +944,14 @@ export const api = {
     return [];
   },
 
+  async trackComplaint(ticketNumber) {
+    if (USE_REAL_BACKEND) {
+      const res = await client.get(`/complaints/track/${encodeURIComponent(ticketNumber.trim().toUpperCase())}`);
+      return res.data;
+    }
+    return null;
+  },
+
   async createComplaint(payload) {
     if (USE_REAL_BACKEND) {
       const res = await client.post('/complaints', payload);
@@ -958,6 +966,16 @@ export const api = {
       is_exceedance: true,
       created_at: new Date().toISOString()
     };
+  },
+
+  async updateComplaintStatus(complaintId, status, officer_notes = '') {
+    const res = await client.patch(`/complaints/${complaintId}/status`, { status, officer_notes });
+    return res.data;
+  },
+
+  async deleteComplaint(complaintId) {
+    const res = await client.delete(`/complaints/${complaintId}`);
+    return res.data;
   },
 
   async getAudioVault(limit = 200) {

@@ -23,6 +23,7 @@ import { AnalyticsPage } from './pages/app/AnalyticsPage';
 import { ReportsPage } from './pages/app/ReportsPage';
 import { SensorsPage } from './pages/app/SensorsPage';
 import { SettingsPage } from './pages/app/SettingsPage';
+import { GrievancesPage } from './pages/app/GrievancesPage';
 
 // Citizen Specific Pages
 import { CitizenDashboardPage } from './pages/app/CitizenDashboardPage';
@@ -88,6 +89,7 @@ function App() {
               <Route path="compliance" element={<AdminGuard><CompliancePage /></AdminGuard>} />
               <Route path="analytics" element={<AdminGuard><AnalyticsPage /></AdminGuard>} />
               <Route path="reports" element={<AdminGuard><ReportsPage /></AdminGuard>} />
+              <Route path="grievances" element={<AdminGuard><GrievancesPage /></AdminGuard>} />
               <Route path="sensors" element={<AdminGuard><SensorsPage /></AdminGuard>} />
               <Route path="settings" element={<AdminGuard><SettingsPage /></AdminGuard>} />
 

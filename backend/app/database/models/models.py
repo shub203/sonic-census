@@ -220,8 +220,12 @@ class CitizenComplaint(Base):
     description = Column(Text, nullable=True)
     status = Column(String(50), default="Submitted & Queued")
     is_exceedance = Column(Boolean, default=True)
+    evidence_audio_id = Column(String(36), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
+    evidence_hash = Column(String(64), nullable=True)
+    officer_notes = Column(Text, nullable=True)
     submitted_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class SensorApiKey(Base):

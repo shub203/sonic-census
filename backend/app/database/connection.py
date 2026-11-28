@@ -67,6 +67,17 @@ def _ensure_schema_upgrades():
             if "file_blob" not in existing_rep:
                 conn.exec_driver_sql(f"ALTER TABLE reports ADD COLUMN file_blob {binary_type}")
 
+        if "citizen_complaints" in tables:
+            existing_cmp = {col["name"] for col in inspector.get_columns("citizen_complaints")}
+            if "evidence_audio_id" not in existing_cmp:
+                conn.exec_driver_sql("ALTER TABLE citizen_complaints ADD COLUMN evidence_audio_id VARCHAR(36)")
+            if "evidence_hash" not in existing_cmp:
+                conn.exec_driver_sql("ALTER TABLE citizen_complaints ADD COLUMN evidence_hash VARCHAR(64)")
+            if "officer_notes" not in existing_cmp:
+                conn.exec_driver_sql("ALTER TABLE citizen_complaints ADD COLUMN officer_notes TEXT")
+            if "updated_at" not in existing_cmp:
+                conn.exec_driver_sql("ALTER TABLE citizen_complaints ADD COLUMN updated_at TIMESTAMP")
+
 def init_db():
     # Import all models before create_all
     import app.database.models
