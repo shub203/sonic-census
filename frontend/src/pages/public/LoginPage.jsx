@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  Activity, 
-  Shield, 
-  User, 
-  ArrowRight, 
+import {
+  Activity,
+  Shield,
+  User,
+  ArrowRight,
   AlertTriangle,
   Eye,
   EyeOff,
   CheckCircle2,
   Lock,
-  Info
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+const ENABLE_DEMO_AUTH = import.meta.env.VITE_ENABLE_DEMO_AUTH === 'true';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -22,14 +23,14 @@ export const LoginPage = () => {
   const hint = location.state?.hint;
   const initialRole = (hint === 'officer' || hint === 'citizen') ? hint : null;
 
-  // If a hint was passed, open directly into the form for that role
   const [view, setView] = useState(initialRole ? 'form' : 'select'); // 'select' | 'form'
   const [selectedRole, setSelectedRole] = useState(initialRole); // 'officer' | 'citizen'
 
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(initialRole === 'officer' ? 'officer@soniccensus.ai' : '');
-  const [password, setPassword] = useState(initialRole === 'officer' ? 'admin123' : '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -38,18 +39,11 @@ export const LoginPage = () => {
     if (hint && (hint === 'officer' || hint === 'citizen')) {
       setSelectedRole(hint);
       setView('form');
-      if (hint === 'officer') {
-        setEmail('officer@soniccensus.ai');
-        setPassword('admin123');
-      } else {
-        setEmail('citizen@soniccensus.ai');
-        setPassword('citizen123');
-      }
     }
   }, [hint]);
 
-  // 1-click demo quick login (obtains real JWT when backend is available, falls back cleanly)
   const handleQuickAccess = async (role) => {
+    if (!ENABLE_DEMO_AUTH) return;
     await switchRole(role);
     if (role === 'officer' || role === 'admin') {
       navigate('/app/dashboard');
@@ -61,19 +55,26 @@ export const LoginPage = () => {
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
     setView('form');
+    setMode('login');
     setError(null);
-    if (role === 'officer') {
-      setEmail('officer@soniccensus.ai');
-      setPassword('admin123');
-    } else {
-      setEmail('citizen@soniccensus.ai');
-      setPassword('citizen123');
-    }
+    setPassword('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    if (mode === 'register') {
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters long.');
+        return;
+      }
+      if (!acceptedTerms) {
+        setError('Please accept the Privacy Policy and Terms of Service to register.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (mode === 'login') {
@@ -89,16 +90,16 @@ export const LoginPage = () => {
           setError(res.error || 'Invalid credentials');
         }
       } else {
-        const role = selectedRole === 'officer' ? 'officer' : 'citizen';
-        const res = await register(name, email, password, role);
+        // Public registration always creates a Citizen account; officers are promoted by an admin.
+        const res = await register(name, email, password, 'citizen');
         if (res.success) {
-          navigate(role === 'officer' ? '/app/dashboard' : '/app/citizen');
+          navigate('/app/citizen');
         } else {
           setError(res.error || 'Registration failed');
         }
       }
     } catch {
-      setError('Unable to reach authentication server. Use Demo Quick Access below.');
+      setError('Unable to reach authentication server. Please verify connection and retry.');
     } finally {
       setLoading(false);
     }
@@ -123,8 +124,7 @@ export const LoginPage = () => {
 
       {/* Main centered content */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
-
-        {/* ── VIEW: Role Selector ── */}
+        {/* VIEW: Role Selector */}
         {view === 'select' && (
           <div className="w-full max-w-2xl space-y-8 animate-fadein">
             <div className="text-center space-y-2">
@@ -191,35 +191,35 @@ export const LoginPage = () => {
               </button>
             </div>
 
-            {/* Quick access strip */}
-            <div className="border-t border-sand pt-6 text-center space-y-3">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-graphite block">
-                1-Click Demo Evaluation (Instant Access)
-              </span>
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={() => handleQuickAccess('officer')}
-                  className="px-4 py-2 border border-ink bg-ink text-paper text-xs font-mono hover:bg-ink-light transition-colors flex items-center gap-1.5"
-                >
-                  <Shield className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  <span>Enter as Admin Officer →</span>
-                </button>
-                <button
-                  onClick={() => handleQuickAccess('citizen')}
-                  className="px-4 py-2 border border-sand bg-paper-light text-ink text-xs font-mono hover:border-ink transition-colors flex items-center gap-1.5"
-                >
-                  <User className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  <span>Enter as Citizen →</span>
-                </button>
+            {ENABLE_DEMO_AUTH && (
+              <div className="border-t border-sand pt-6 text-center space-y-3">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-graphite block">
+                  Local Demo Quick Access
+                </span>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => handleQuickAccess('officer')}
+                    className="px-4 py-2 border border-ink bg-ink text-paper text-xs font-mono hover:bg-ink-light transition-colors flex items-center gap-1.5"
+                  >
+                    <Shield className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    <span>Enter as Admin Officer →</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuickAccess('citizen')}
+                    className="px-4 py-2 border border-sand bg-paper-light text-ink text-xs font-mono hover:border-ink transition-colors flex items-center gap-1.5"
+                  >
+                    <User className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    <span>Enter as Citizen →</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {/* ── VIEW: Login / Register Form ── */}
+        {/* VIEW: Login / Register Form */}
         {view === 'form' && (
           <div className="w-full max-w-sm space-y-6 animate-fadein">
-            {/* Back link */}
             <button
               onClick={() => { setView('select'); setError(null); }}
               className="text-xs font-mono text-graphite hover:text-ink transition-colors flex items-center gap-1"
@@ -227,7 +227,6 @@ export const LoginPage = () => {
               ← Choose different role
             </button>
 
-            {/* Hint Notification Banner if redirected */}
             {hint === 'officer' && (
               <div className="p-3 border border-ink bg-paper-light flex items-center gap-2 text-xs font-mono text-ink">
                 <Lock className="w-4 h-4 text-loud flex-shrink-0" strokeWidth={1.5} />
@@ -235,7 +234,6 @@ export const LoginPage = () => {
               </div>
             )}
 
-            {/* Role badge */}
             <div className="flex items-center gap-2">
               {isAdmin ? (
                 <Shield className="w-4 h-4 text-ink" strokeWidth={1.5} />
@@ -243,20 +241,22 @@ export const LoginPage = () => {
                 <User className="w-4 h-4 text-graphite" strokeWidth={1.5} />
               )}
               <span className="text-[9px] font-mono uppercase tracking-widest text-graphite">
-                {isAdmin ? 'Admin / Officer Portal' : 'Public Citizen Portal'}
+                {isAdmin && mode === 'login' ? 'Admin / Officer Portal' : 'Public Citizen Portal'}
               </span>
             </div>
 
             <div>
               <h1 className="font-serif text-2xl font-bold text-ink">
-                {isAdmin 
-                  ? (mode === 'login' ? 'Officer Sign In' : 'Create Officer Account')
-                  : (mode === 'login' ? 'Citizen Sign In' : 'Create Citizen Account')}
+                {mode === 'login'
+                  ? (isAdmin ? 'Officer Sign In' : 'Citizen Sign In')
+                  : 'Create Citizen Account'}
               </h1>
               <p className="text-xs text-graphite font-sans mt-1">
-                {isAdmin 
-                  ? 'Access CPCB compliance engine, raw sensor telemetry, and statutory reports.'
-                  : 'Access the residential sound evaluator and file noise grievance tickets.'}
+                {mode === 'register'
+                  ? 'New accounts start with Citizen access. Existing officers can assign Analyst or Officer roles inside Admin Settings.'
+                  : (isAdmin
+                      ? 'Sign in with your authorised CPCB officer credentials.'
+                      : 'Access the residential sound evaluator and file noise grievance tickets.')}
               </p>
             </div>
 
@@ -276,6 +276,7 @@ export const LoginPage = () => {
                   <input
                     type="text"
                     required
+                    minLength={2}
                     value={name}
                     onChange={e => setName(e.target.value)}
                     placeholder="Your full name"
@@ -293,19 +294,20 @@ export const LoginPage = () => {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder={isAdmin ? 'officer@soniccensus.ai' : 'citizen@soniccensus.ai'}
+                  placeholder="name@example.com"
                   className="w-full px-3 py-2.5 border border-sand bg-paper text-ink text-sm font-sans focus:border-ink outline-none transition-colors placeholder:text-graphite/50"
                 />
               </div>
 
               <div>
                 <label className="block text-[10px] uppercase font-mono text-graphite mb-1.5 tracking-wider">
-                  Password
+                  Password {mode === 'register' && '(min 8 chars)'}
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
+                    minLength={mode === 'register' ? 8 : 1}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -318,11 +320,27 @@ export const LoginPage = () => {
                   >
                     {showPassword
                       ? <EyeOff className="w-4 h-4" strokeWidth={1.5} />
-                      : <Eye className="w-4 h-4" strokeWidth={1.5} />
-                    }
+                      : <Eye className="w-4 h-4" strokeWidth={1.5} />}
                   </button>
                 </div>
               </div>
+
+              {mode === 'register' && (
+                <label className="flex items-start gap-2 text-xs text-graphite font-sans cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 accent-ink"
+                  />
+                  <span>
+                    I accept the{' '}
+                    <Link to="/privacy" className="text-ink underline">Privacy Policy</Link>
+                    {' '}and{' '}
+                    <Link to="/terms" className="text-ink underline">Terms of Service</Link>.
+                  </span>
+                </label>
+              )}
 
               <button
                 type="submit"
@@ -333,7 +351,7 @@ export const LoginPage = () => {
                 <span>
                   {loading
                     ? 'Authenticating...'
-                    : mode === 'login' ? `Enter ${isAdmin ? 'Admin' : 'Citizen'} Portal` : 'Create Account'}
+                    : mode === 'login' ? `Enter ${isAdmin ? 'Admin' : 'Citizen'} Portal` : 'Create Citizen Account'}
                 </span>
               </button>
             </form>
@@ -348,26 +366,29 @@ export const LoginPage = () => {
               </button>
             </div>
 
-            {/* Quick access fallback */}
-            <div className="pt-4 border-t border-sand text-center space-y-2">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-graphite block">
-                Instant Demo Access
-              </span>
-              <button
-                onClick={() => handleQuickAccess(isAdmin ? 'officer' : 'citizen')}
-                className="w-full py-2 border border-sand bg-paper-light hover:border-ink text-xs font-mono text-ink transition-colors flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-quiet" strokeWidth={1.5} />
-                <span>1-Click Access as {isAdmin ? 'Admin Officer' : 'Citizen'} →</span>
-              </button>
-            </div>
+            {ENABLE_DEMO_AUTH && (
+              <div className="pt-4 border-t border-sand text-center space-y-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-graphite block">
+                  Local Demo Access
+                </span>
+                <button
+                  onClick={() => handleQuickAccess(isAdmin ? 'officer' : 'citizen')}
+                  className="w-full py-2 border border-sand bg-paper-light hover:border-ink text-xs font-mono text-ink transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-quiet" strokeWidth={1.5} />
+                  <span>1-Click Access as {isAdmin ? 'Admin Officer' : 'Citizen'} →</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-sand py-4 px-6 text-center text-[10px] font-mono text-graphite flex-shrink-0">
-        Sonic Census · Central Pollution Control Board, 2000 Noise Rules
+      <footer className="border-t border-sand py-4 px-6 text-center text-[10px] font-mono text-graphite flex-shrink-0 flex flex-wrap items-center justify-center gap-4">
+        <span>Sonic Census · Central Pollution Control Board, 2000 Noise Rules</span>
+        <Link to="/privacy" className="underline hover:text-ink">Privacy</Link>
+        <Link to="/terms" className="underline hover:text-ink">Terms</Link>
       </footer>
     </div>
   );

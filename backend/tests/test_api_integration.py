@@ -4,10 +4,13 @@ import hashlib
 import io
 import json
 import math
+import os
+import uuid
 import wave
 import zipfile
 from seed_data import seed_database
 from app.main import app
+from app.security.rate_limit import rate_limiter
 
 
 def _asgi_call(method: str, path: str, body: bytes = b"", headers: dict | None = None):
@@ -83,6 +86,7 @@ def _make_wav_bytes(freq=1850, duration_sec=1.5, sr=16000):
 
 
 def setup_module(module):
+    rate_limiter.reset()
     seed_database()
 
 
@@ -206,3 +210,86 @@ def test_audio_upload_and_cleanup():
 
     st_del, _ = _json_call("DELETE", f"/api/v1/audio/{up['id']}", headers={"Authorization": f"Bearer {off_tok}"})
     assert st_del == 200
+
+
+def test_commercial_security_and_blob_persistence():
+    rate_limiter.reset()
+
+    # 1. Public signup MUST ignore client-supplied role='officer' and create a citizen
+    unique_email = f"audit_cit_{uuid.uuid4().hex[:8]}@example.com"
+    st_reg, reg_body = _json_call(
+        "POST",
+        "/api/v1/auth/register",
+        {"name": "Audit Test User", "email": unique_email, "password": "StrongPassword123", "role": "officer"},
+    )
+    assert st_reg == 200
+    assert reg_body["user"]["role"] == "citizen"
+
+    # Weak password rejected
+    st_weak, _ = _json_call(
+        "POST",
+        "/api/v1/auth/register",
+        {"name": "Weak", "email": f"weak_{uuid.uuid4().hex[:6]}@example.com", "password": "123"},
+    )
+    assert st_weak == 422
+
+    # 2. Sensor telemetry requires X-API-Key or Officer auth
+    _, ol_body = _json_call("POST", "/api/v1/auth/login", {"email": "officer@soniccensus.ai", "password": "admin123"})
+    off_tok = ol_body["access_token"]
+    st_sensors, sensors = _json_call("GET", "/api/v1/sensors")
+    assert st_sensors == 200 and len(sensors) >= 1
+    sensor_id = sensors[0]["id"]
+
+    st_noauth, _ = _json_call("POST", f"/api/v1/sensors/{sensor_id}/readings", {"laeq": 61.5, "lmax": 70.2})
+    assert st_noauth == 401
+
+    st_key, key_data = _json_call(
+        "POST",
+        f"/api/v1/sensors/{sensor_id}/api-keys",
+        {"label": "CI Test Node"},
+        headers={"Authorization": f"Bearer {off_tok}"},
+    )
+    assert st_key == 200 and key_data["api_key"].startswith("sc_iot_")
+
+    st_ingest, ingest_res = _json_call(
+        "POST",
+        f"/api/v1/sensors/{sensor_id}/readings",
+        {"laeq": 62.4, "lmax": 71.0, "category": "Traffic"},
+        headers={"X-API-Key": key_data["api_key"]},
+    )
+    assert st_ingest == 200 and ingest_res["sensor_id"] == sensor_id
+
+    # Revoke key and verify rejection
+    st_rev, _ = _json_call(
+        "DELETE",
+        f"/api/v1/sensors/{sensor_id}/api-keys/{key_data['id']}",
+        headers={"Authorization": f"Bearer {off_tok}"},
+    )
+    assert st_rev == 200
+    st_after_rev, _ = _json_call(
+        "POST",
+        f"/api/v1/sensors/{sensor_id}/readings",
+        {"laeq": 62.4, "lmax": 71.0},
+        headers={"X-API-Key": key_data["api_key"]},
+    )
+    assert st_after_rev == 401
+
+    # 3. Generated report persists inside DB even if disk file is deleted
+    st_rep, rep = _json_call(
+        "POST",
+        "/api/v1/reports/generate",
+        {"report_type": "Daily", "reporting_period": "Last 24 Hours", "location": "Delhi", "file_format": "CSV"},
+        headers={"Authorization": f"Bearer {off_tok}"},
+    )
+    assert st_rep == 200
+    disk_file = os.path.join("generated_reports", os.path.basename(rep["file_path"]))
+    if os.path.exists(disk_file):
+        os.remove(disk_file)
+    st_rdl, rdl_bytes = _asgi_call("GET", f"/api/v1/reports/{rep['id']}/download")
+    assert st_rdl == 200 and b"Sonic Census" in rdl_bytes
+
+    # 4. Audit logs & storage stats accessible to officer
+    st_aud, audit_rows = _json_call("GET", "/api/v1/admin/audit-logs?limit=20", headers={"Authorization": f"Bearer {off_tok}"})
+    assert st_aud == 200 and len(audit_rows) >= 1
+    st_stats, stats = _json_call("GET", "/api/v1/admin/storage-stats", headers={"Authorization": f"Bearer {off_tok}"})
+    assert st_stats == 200 and "vault_quota_mb" in stats

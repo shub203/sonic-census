@@ -6,10 +6,18 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="allow")
 
     PROJECT_NAME: str = "Sonic Census"
+    ENVIRONMENT: str = "development"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = "noisepollution-ai-super-secret-key-change-in-production-2026"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day for dev convenience
+    RATE_LIMIT_ENABLED: bool = True
+    MAX_VAULT_STORAGE_MB: int = 750
+
+    # Optional bootstrap credentials for initial DB seed
+    OFFICER_BOOTSTRAP_PASSWORD: str = "admin123"
+    ANALYST_BOOTSTRAP_PASSWORD: str = "analyst123"
+    CITIZEN_BOOTSTRAP_PASSWORD: str = "citizen123"
     
     # Database URL: default to SQLite fallback for zero-friction local run if PostgreSQL not configured
     DATABASE_URL: str = "sqlite:///./noisepollution.db"
@@ -35,10 +43,11 @@ class Settings(BaseSettings):
     MODEL_PATH: str = "models/Cnn14.pth"
     DEVICE: str = "cpu"
     
-    # Optional Third-Party Keys
+    # Optional Third-Party Keys & Observability
     GEMINI_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     RESEND_API_KEY: Optional[str] = None
     GOOGLE_MAPS_API_KEY: Optional[str] = None
+    SENTRY_DSN: Optional[str] = None
 
 settings = Settings()

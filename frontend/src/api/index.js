@@ -39,14 +39,66 @@ const client = axios.create({
   timeout: 75000,
 });
 
-// Attach JWT token if present
+let pendingSlowRequests = 0;
+const slowTimers = new WeakMap();
+
+function notifySlowState(active) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('sonic-backend-waking', { detail: { active } }));
+  }
+}
+
+// Attach JWT token if present & track cold-start wakeup notifications
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('noise_auth_token');
   if (token && token !== 'demo-token') {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (typeof window !== 'undefined') {
+    const timer = setTimeout(() => {
+      pendingSlowRequests += 1;
+      notifySlowState(true);
+    }, 3500);
+    slowTimers.set(config, timer);
+  }
   return config;
 });
+
+function clearSlowTimer(config) {
+  const timer = config ? slowTimers.get(config) : null;
+  if (timer) {
+    clearTimeout(timer);
+    slowTimers.delete(config);
+  } else if (pendingSlowRequests > 0) {
+    pendingSlowRequests = Math.max(0, pendingSlowRequests - 1);
+    if (pendingSlowRequests === 0) notifySlowState(false);
+  }
+}
+
+client.interceptors.response.use(
+  (response) => {
+    const hadTimer = response?.config && slowTimers.has(response.config);
+    if (hadTimer) {
+      clearTimeout(slowTimers.get(response.config));
+      slowTimers.delete(response.config);
+    } else if (pendingSlowRequests > 0) {
+      pendingSlowRequests = Math.max(0, pendingSlowRequests - 1);
+      if (pendingSlowRequests === 0) notifySlowState(false);
+    }
+    return response;
+  },
+  (error) => {
+    const cfg = error?.config;
+    if (cfg && slowTimers.has(cfg)) {
+      clearTimeout(slowTimers.get(cfg));
+      slowTimers.delete(cfg);
+    } else if (pendingSlowRequests > 0) {
+      pendingSlowRequests = Math.max(0, pendingSlowRequests - 1);
+      if (pendingSlowRequests === 0) notifySlowState(false);
+    }
+    return Promise.reject(error);
+  }
+);
 
 // In-memory mock jobs state machine
 const activeJobs = new Map();
@@ -828,6 +880,46 @@ export const api = {
     }
     await delay(120);
     return MOCK_REPORTS;
+  },
+
+  async changePassword(current_password, new_password) {
+    const res = await client.post('/auth/change-password', { current_password, new_password });
+    return res.data;
+  },
+
+  async listUsers() {
+    const res = await client.get('/auth/users');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  async updateUserRole(userId, role) {
+    const res = await client.patch(`/auth/users/${userId}/role`, { role });
+    return res.data;
+  },
+
+  async getAuditLogs(limit = 50) {
+    const res = await client.get(`/admin/audit-logs?limit=${limit}`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  async getStorageStats() {
+    const res = await client.get('/admin/storage-stats');
+    return res.data;
+  },
+
+  async listSensorApiKeys(sensorId) {
+    const res = await client.get(`/sensors/${sensorId}/api-keys`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  async createSensorApiKey(sensorId, label) {
+    const res = await client.post(`/sensors/${sensorId}/api-keys`, { label });
+    return res.data;
+  },
+
+  async revokeSensorApiKey(sensorId, keyId) {
+    const res = await client.delete(`/sensors/${sensorId}/api-keys/${keyId}`);
+    return res.data;
   },
 
   async createSensor(sensorPayload) {

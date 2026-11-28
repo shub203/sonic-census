@@ -11,6 +11,7 @@ import { Footer } from './components/layout/Footer';
 import { LandingPage } from './pages/public/LandingPage';
 import { Contact } from './pages/public/Contact';
 import { LoginPage } from './pages/public/LoginPage';
+import { PrivacyPage, TermsPage } from './pages/public/LegalPages';
 
 // App Layout & Pages
 import { AppLayout } from './components/layout/AppLayout';
@@ -72,6 +73,8 @@ function App() {
             <Route path="/research" element={<Navigate to="/#research" replace />} />
             <Route path="/about" element={<Navigate to="/#about" replace />} />
             <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
+            <Route path="/privacy" element={<PublicLayout><PrivacyPage /></PublicLayout>} />
+            <Route path="/terms" element={<PublicLayout><TermsPage /></PublicLayout>} />
             <Route path="/login" element={<LoginPage />} />
 
             {/* Application Portal Routes */}

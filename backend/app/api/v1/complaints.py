@@ -1,12 +1,14 @@
 import random
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.database.connection import get_db
 from app.database.models.models import CitizenComplaint
+from app.security.rate_limit import rate_limit
+from app.services.audit_service import AuditService
 from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/complaints", tags=["Citizen Grievances"])
@@ -43,9 +45,14 @@ def list_complaints(db: Session = Depends(get_db)):
     return db.query(CitizenComplaint).order_by(CitizenComplaint.created_at.desc()).limit(50).all()
 
 
-@router.post("", response_model=ComplaintResponse)
+@router.post(
+    "",
+    response_model=ComplaintResponse,
+    dependencies=[Depends(rate_limit("complaints", max_requests=15, window_seconds=3600))],
+)
 def create_complaint(
     payload: ComplaintCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):

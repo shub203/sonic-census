@@ -22,6 +22,8 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://sonic-census.netlify.app
+      - key: ENVIRONMENT
+        value: production
       - key: DEVICE
         value: cpu
       - key: MAX_UPLOAD_SIZE_MB

@@ -8,6 +8,7 @@ import {
   Activity, 
   CheckCircle2, 
   AlertTriangle,
+  KeyRound,
   X
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -15,12 +16,17 @@ import L from 'leaflet';
 import { SimulatedBadge } from '../../components/common/SimulatedBadge';
 import { NoiseTag } from '../../components/common/NoiseTag';
 import { createSensorDialHtml } from '../../components/common/SensorDial';
-import { api } from '../../api';
+import { api, USE_REAL_BACKEND } from '../../api';
 
 export const SensorsPage = () => {
   const [sensors, setSensors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [keyModalSensor, setKeyModalSensor] = useState(null);
+  const [sensorKeys, setSensorKeys] = useState([]);
+  const [newKeyLabel, setNewKeyLabel] = useState('Primary IoT Gateway');
+  const [freshRawKey, setFreshRawKey] = useState(null);
+  const [keyError, setKeyError] = useState(null);
 
   // New Sensor form state
   const [newSensor, setNewSensor] = useState({
@@ -76,6 +82,48 @@ export const SensorsPage = () => {
     } catch (err) {
       console.error('Failed to register sensor:', err);
       alert(err?.response?.data?.detail || 'Officer authentication required to register new sensor nodes.');
+    }
+  };
+
+  const openKeyModal = async (sensor) => {
+    setKeyModalSensor(sensor);
+    setFreshRawKey(null);
+    setKeyError(null);
+    if (!USE_REAL_BACKEND) {
+      setSensorKeys([]);
+      return;
+    }
+    try {
+      const list = await api.listSensorApiKeys(sensor.id);
+      setSensorKeys(list);
+    } catch (err) {
+      setKeyError(err?.response?.data?.detail || 'Unable to load sensor API keys.');
+    }
+  };
+
+  const handleIssueKey = async (e) => {
+    e.preventDefault();
+    if (!keyModalSensor) return;
+    setKeyError(null);
+    try {
+      const created = await api.createSensorApiKey(keyModalSensor.id, newKeyLabel);
+      setFreshRawKey(created.api_key);
+      const list = await api.listSensorApiKeys(keyModalSensor.id);
+      setSensorKeys(list);
+    } catch (err) {
+      setKeyError(err?.response?.data?.detail || 'Failed to issue sensor API key.');
+    }
+  };
+
+  const handleRevokeKey = async (keyId) => {
+    if (!keyModalSensor) return;
+    setKeyError(null);
+    try {
+      await api.revokeSensorApiKey(keyModalSensor.id, keyId);
+      const list = await api.listSensorApiKeys(keyModalSensor.id);
+      setSensorKeys(list);
+    } catch (err) {
+      setKeyError(err?.response?.data?.detail || 'Failed to revoke key.');
     }
   };
 
@@ -165,7 +213,8 @@ export const SensorsPage = () => {
                 <th className="py-2 pr-3">Calibration Date</th>
                 <th className="py-2 pr-3">Last Seen</th>
                 <th className="py-2 pr-3 text-right">Current LAeq</th>
-                <th className="py-2 text-center">Status</th>
+                <th className="py-2 pr-3 text-center">Status</th>
+                {USE_REAL_BACKEND && <th className="py-2 text-right">IoT Auth</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-sand">
@@ -195,6 +244,18 @@ export const SensorsPage = () => {
                   <td className="py-2.5 text-center">
                     <NoiseTag level={s.compliance_status} size="sm" />
                   </td>
+                  {USE_REAL_BACKEND && (
+                    <td className="py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openKeyModal(s)}
+                        className="px-2 py-1 border border-sand hover:border-ink text-[10px] font-mono text-ink inline-flex items-center gap-1"
+                      >
+                        <KeyRound className="w-3 h-3" strokeWidth={1.5} />
+                        <span>API Key</span>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -295,6 +356,80 @@ export const SensorsPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* IoT Sensor API Key Modal */}
+      {keyModalSensor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+          <div className="bg-paper border border-ink p-6 max-w-lg w-full space-y-4 text-xs font-mono">
+            <div className="flex items-center justify-between border-b border-sand pb-2">
+              <span className="font-serif text-sm font-bold text-ink">
+                IoT Hardware Keys · {keyModalSensor.sensor_name}
+              </span>
+              <button onClick={() => setKeyModalSensor(null)} className="text-graphite hover:text-ink">
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            {keyError && (
+              <div className="p-2.5 border border-loud text-loud">{keyError}</div>
+            )}
+
+            {freshRawKey && (
+              <div className="p-3 border border-quiet bg-quiet/10 space-y-1">
+                <span className="text-[10px] uppercase text-quiet font-bold block">
+                  Copy API Key Now (Shown Once)
+                </span>
+                <code className="block break-all text-ink bg-paper p-2 border border-sand">
+                  {freshRawKey}
+                </code>
+                <span className="text-[10px] text-graphite block">
+                  Send via header: <code>X-API-Key: {freshRawKey}</code> to POST /api/v1/sensors/{keyModalSensor.id}/readings
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleIssueKey} className="flex gap-2">
+              <input
+                type="text"
+                required
+                value={newKeyLabel}
+                onChange={(e) => setNewKeyLabel(e.target.value)}
+                placeholder="Gateway label"
+                className="flex-1 px-2.5 py-1.5 border border-sand bg-paper-light text-ink"
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 border border-ink bg-ink text-paper uppercase"
+              >
+                Issue Key
+              </button>
+            </form>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {sensorKeys.map((k) => (
+                <div key={k.id} className="flex items-center justify-between p-2 border border-sand bg-paper-light">
+                  <div>
+                    <div className="text-ink font-semibold">{k.label}</div>
+                    <div className="text-[10px] text-graphite">{k.key_prefix}… · {k.active ? 'Active' : 'Revoked'}</div>
+                  </div>
+                  {k.active && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevokeKey(k.id)}
+                      className="px-2 py-1 border border-loud/40 text-loud text-[10px] hover:bg-loud hover:text-paper"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              ))}
+              {sensorKeys.length === 0 && (
+                <div className="text-graphite text-[11px]">No hardware API keys issued for this station yet.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

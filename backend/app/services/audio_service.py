@@ -10,6 +10,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from fastapi import UploadFile, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -97,6 +98,14 @@ class AudioService:
             existing.upload_count = (existing.upload_count or 1) + 1
             existing.last_seen_at = datetime.utcnow()
             return existing
+
+        max_vault_bytes = max(1, settings.MAX_VAULT_STORAGE_MB) * 1024 * 1024
+        used_bytes = db.query(func.coalesce(func.sum(AudioVaultEntry.file_size), 0)).scalar() or 0
+        if used_bytes + file_size > max_vault_bytes:
+            raise HTTPException(
+                status_code=507,
+                detail=f"Audio vault storage quota ({settings.MAX_VAULT_STORAGE_MB} MB) reached. Purge legacy entries or upgrade storage.",
+            )
 
         entry = AudioVaultEntry(
             sha256_hash=sha256_hash,
@@ -237,6 +246,11 @@ class AudioService:
             waveform_peaks = generate_waveform_peaks(audio_data, num_points=120)
             spectrogram_filename = f"{file_id}_spec.png"
             spectrogram_rel_path = generate_spectrogram_image(audio_data, sample_rate, spectrogram_filename)
+            spectrogram_blob = None
+            spec_disk_path = os.path.join(settings.SPECTROGRAMS_DIRECTORY, spectrogram_filename)
+            if os.path.exists(spec_disk_path):
+                with open(spec_disk_path, "rb") as sf:
+                    spectrogram_blob = sf.read()
 
             # 6. Acoustic measurements
             acoustic = calculate_acoustic_metrics(
@@ -285,6 +299,7 @@ class AudioService:
                 processing_status="completed",
                 waveform_data=json.dumps(waveform_peaks),
                 spectrogram_path=spectrogram_rel_path,
+                spectrogram_blob=spectrogram_blob,
                 uploaded_by=user_id,
                 uploaded_at=uploaded_at,
             )

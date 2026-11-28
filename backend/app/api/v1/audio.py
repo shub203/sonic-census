@@ -1,6 +1,7 @@
+import os
 import json
 import asyncio
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,8 @@ from app.database.models import (
 )
 from app.services.audio_service import AudioService
 from app.services.gemini_service import GeminiAudioService
+from app.services.audit_service import AuditService
+from app.security.rate_limit import rate_limit, rate_limiter, get_client_ip
 from app.dependencies import get_current_user, require_officer
 
 router = APIRouter(prefix="/audio", tags=["Audio Analysis"])
@@ -85,6 +88,7 @@ async def gemini_audio_screen(
 
 @router.post("/uploads")
 async def upload_audio(
+    request: Request,
     file: UploadFile = File(...),
     zone_type: str = Form("Residential"),
     is_calibrated: bool = Form(False),
@@ -96,6 +100,11 @@ async def upload_audio(
     Receives WAV, MP3, FLAC recording, vaults its SHA-256 hash & raw binary in DB,
     and executes the full DSP + compliance pipeline.
     """
+    if settings.RATE_LIMIT_ENABLED:
+        client_ip = get_client_ip(request)
+        limit = 60 if user else 15
+        rate_limiter.check(f"audio_upload:{client_ip}", max_requests=limit, window_seconds=3600)
+
     user_id = user.id if user else None
     audio_record = await AudioService.process_uploaded_audio(
         file=file,
@@ -104,6 +113,16 @@ async def upload_audio(
         zone_type=zone_type,
         is_calibrated=is_calibrated,
         use_gemini=use_gemini,
+    )
+
+    AuditService.log_event(
+        db=db,
+        action="audio.upload",
+        resource_type="audio_file",
+        resource_id=audio_record.id,
+        actor=user,
+        request=request,
+        details={"filename": audio_record.original_filename, "file_hash": audio_record.file_hash},
     )
 
     events = db.query(SoundEvent).filter(SoundEvent.audio_file_id == audio_record.id).all()
@@ -131,7 +150,11 @@ async def upload_audio(
         "processing_status": audio_record.processing_status,
         **_audio_hash_metadata(audio_record, stored_in_db=bool(audio_record.file_hash)),
         "waveform": waveform,
-        "spectrogram_url": audio_record.spectrogram_path,
+        "spectrogram_url": (
+            f"{settings.API_V1_STR}/audio/{audio_record.id}/spectrogram"
+            if (audio_record.spectrogram_blob or audio_record.spectrogram_path)
+            else None
+        ),
         "acoustic_measurement": {
             "laeq": meas.laeq if meas else None,
             "lmax": meas.lmax if meas else None,
@@ -198,8 +221,12 @@ def get_audio_vault(
     return AudioService.list_vault_entries(db, limit=limit)
 
 
-@router.get("/vault/export")
+@router.get(
+    "/vault/export",
+    dependencies=[Depends(rate_limit("vault_export", max_requests=15, window_seconds=60))],
+)
 def export_audio_vault(
+    request: Request,
     format: str = Query("zip"),
     include_base64: bool = Query(False),
     db: Session = Depends(get_db),
@@ -209,6 +236,7 @@ def export_audio_vault(
     fmt = format.strip().lower()
     if fmt == "zip":
         payload = AudioService.export_vault_zip(db)
+        AuditService.log_event(db=db, action="audio.vault_export", resource_type="audio_vault", actor=user, request=request, details={"format": "zip"})
         return Response(
             content=payload,
             media_type="application/zip",
@@ -216,6 +244,7 @@ def export_audio_vault(
         )
     if fmt == "json":
         payload = AudioService.export_vault_json(db, include_base64=include_base64)
+        AuditService.log_event(db=db, action="audio.vault_export", resource_type="audio_vault", actor=user, request=request, details={"format": "json"})
         return Response(
             content=payload,
             media_type="application/json",
@@ -223,6 +252,7 @@ def export_audio_vault(
         )
     if fmt == "csv":
         payload = AudioService.export_vault_csv(db)
+        AuditService.log_event(db=db, action="audio.vault_export", resource_type="audio_vault", actor=user, request=request, details={"format": "csv"})
         return Response(
             content=payload,
             media_type="text/csv",
@@ -265,6 +295,23 @@ def download_audio_by_id(id: str, db: Session = Depends(get_db)):
     return _audio_binary_response(blob, filename, mime_type, digest, entry_hash)
 
 
+@router.get("/{id}/spectrogram")
+def get_audio_spectrogram(id: str, db: Session = Depends(get_db)):
+    """Serve persisted spectrogram PNG from database blob (or disk fallback)."""
+    audio = db.query(AudioFile).filter(AudioFile.id == id).first()
+    if not audio:
+        raise HTTPException(status_code=404, detail="Audio recording not found")
+    if audio.spectrogram_blob:
+        return Response(content=audio.spectrogram_blob, media_type="image/png")
+    if audio.spectrogram_path:
+        spec_name = os.path.basename(audio.spectrogram_path)
+        spec_disk = os.path.join(settings.SPECTROGRAMS_DIRECTORY, spec_name)
+        if os.path.exists(spec_disk):
+            with open(spec_disk, "rb") as sf:
+                return Response(content=sf.read(), media_type="image/png")
+    raise HTTPException(status_code=404, detail="Spectrogram image not found")
+
+
 @router.get("/{id}")
 def get_audio_detail(id: str, db: Session = Depends(get_db)):
     audio = db.query(AudioFile).filter(AudioFile.id == id).first()
@@ -304,7 +351,11 @@ def get_audio_detail(id: str, db: Session = Depends(get_db)):
         "processing_status": audio.processing_status,
         **_audio_hash_metadata(audio, stored_in_db=stored_in_db),
         "waveform": waveform,
-        "spectrogram_url": audio.spectrogram_path,
+        "spectrogram_url": (
+            f"{settings.API_V1_STR}/audio/{audio.id}/spectrogram"
+            if (audio.spectrogram_blob or audio.spectrogram_path)
+            else None
+        ),
         "acoustic_measurement": {
             "laeq": meas.laeq if meas else None,
             "lmax": meas.lmax if meas else None,
@@ -335,10 +386,11 @@ def get_audio_detail(id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{id}")
-def delete_audio(id: str, db: Session = Depends(get_db), user=Depends(require_officer)):
+def delete_audio(id: str, request: Request, db: Session = Depends(get_db), user=Depends(require_officer)):
     audio = db.query(AudioFile).filter(AudioFile.id == id).first()
     if not audio:
         raise HTTPException(status_code=404, detail="Audio file not found")
 
     AudioService.delete_audio_record(db, audio)
+    AuditService.log_event(db=db, action="audio.delete", resource_type="audio_file", resource_id=id, actor=user, request=request)
     return {"message": "Audio recording and related analyses deleted successfully"}

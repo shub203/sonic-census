@@ -209,6 +209,11 @@ class ReportService:
 
             doc.build(story)
 
+        file_blob = None
+        if os.path.exists(filepath):
+            with open(filepath, "rb") as rf:
+                file_blob = rf.read()
+
         report = Report(
             id=report_id,
             report_type=report_type,
@@ -216,6 +221,7 @@ class ReportService:
             location=location,
             file_format=file_format.upper(),
             file_path=f"/static/reports/{filename}",
+            file_blob=file_blob,
             created_by=user_id,
             status="ready"
         )

@@ -4,10 +4,19 @@ from datetime import datetime, date
 
 # --- AUTH SCHEMAS ---
 class UserRegister(BaseModel):
-    name: str
+    name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
-    password: str
-    role: Optional[str] = "analyst"
+    password: str = Field(..., min_length=8, max_length=128)
+    role: Optional[str] = "citizen"
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str = Field(..., min_length=3, max_length=30)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -89,6 +98,10 @@ class ReadingIngest(BaseModel):
     category: Optional[str] = "Traffic"
     confidence: Optional[float] = 0.85
     duration: Optional[float] = 60.0
+
+
+class SensorApiKeyCreate(BaseModel):
+    label: str = Field("Primary IoT Gateway", min_length=2, max_length=100)
 
 # --- MEASUREMENT SCHEMAS ---
 class MeasurementResponse(BaseModel):

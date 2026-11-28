@@ -40,8 +40,10 @@ export const Footer = () => {
           <p className="text-[11px] text-graphite leading-relaxed">
             Statutory notice: Field readings and automated multi-label classifications provide environmental decision support. Statutory sanctions require physical verification by authorized pollution control inspectors.
           </p>
-          <div className="pt-2 text-[10px] font-mono text-graphite">
-            © 2026 Sonic Census. Indian Environmental Standards.
+          <div className="pt-2 flex flex-wrap items-center gap-3 text-[10px] font-mono text-graphite">
+            <span>© 2026 Sonic Census. Indian Environmental Standards.</span>
+            <Link to="/privacy" className="underline hover:text-ink">Privacy Policy</Link>
+            <Link to="/terms" className="underline hover:text-ink">Terms of Service</Link>
           </div>
         </div>
       </div>

@@ -56,6 +56,7 @@ class AudioFile(Base):
     processing_status = Column(String(50), default="queued")  # queued, processing, completed, failed
     waveform_data = Column(Text, nullable=True)  # JSON array of downsampled peak amplitudes
     spectrogram_path = Column(String(255), nullable=True)
+    spectrogram_blob = Column(LargeBinary, nullable=True)
     uploaded_by = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     
@@ -104,6 +105,7 @@ class Sensor(Base):
     sound_events = relationship("SoundEvent", back_populates="sensor")
     measurements = relationship("Measurement", back_populates="sensor", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="sensor", cascade="all, delete-orphan")
+    api_keys = relationship("SensorApiKey", back_populates="sensor", cascade="all, delete-orphan")
 
 class Measurement(Base):
     __tablename__ = "measurements"
@@ -184,6 +186,7 @@ class Report(Base):
     location = Column(Text, default="All Locations")
     file_format = Column(String(20), default="PDF")  # PDF, CSV
     file_path = Column(Text, nullable=False)
+    file_blob = Column(LargeBinary, nullable=True)
     created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     generated_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default="ready")
@@ -219,3 +222,35 @@ class CitizenComplaint(Base):
     is_exceedance = Column(Boolean, default=True)
     submitted_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SensorApiKey(Base):
+    __tablename__ = "sensor_api_keys"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    sensor_id = Column(String(36), ForeignKey("sensors.id", ondelete="CASCADE"), nullable=False, index=True)
+    key_prefix = Column(String(20), nullable=False)
+    key_hash = Column(String(64), unique=True, nullable=False, index=True)
+    label = Column(String(100), nullable=False, default="IoT Hardware Node")
+    active = Column(Boolean, nullable=False, default=True)
+    created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    sensor = relationship("Sensor", back_populates="api_keys")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    actor_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_email = Column(String(150), nullable=True)
+    actor_role = Column(String(50), nullable=False, default="anonymous")
+    action = Column(String(100), nullable=False, index=True)
+    resource_type = Column(String(100), nullable=False)
+    resource_id = Column(String(100), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    status_code = Column(Integer, nullable=False, default=200)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

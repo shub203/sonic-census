@@ -2,6 +2,7 @@ import os
 import random
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database.connection import SessionLocal, init_db
 from app.database.models import User, Sensor, Measurement, SoundEvent, ComplianceRule, Alert, CitizenComplaint
 from app.dependencies import get_password_hash
@@ -27,9 +28,9 @@ def seed_database():
 
         # 2. Seed Default Users
         default_users = [
-            ("CPCB Environmental Officer", "officer@soniccensus.ai", "admin123", "officer"),
-            ("Acoustic Data Analyst", "analyst@soniccensus.ai", "analyst123", "analyst"),
-            ("Public Citizen Observer", "citizen@soniccensus.ai", "citizen123", "citizen"),
+            ("CPCB Environmental Officer", "officer@soniccensus.ai", settings.OFFICER_BOOTSTRAP_PASSWORD, "officer"),
+            ("Acoustic Data Analyst", "analyst@soniccensus.ai", settings.ANALYST_BOOTSTRAP_PASSWORD, "analyst"),
+            ("Public Citizen Observer", "citizen@soniccensus.ai", settings.CITIZEN_BOOTSTRAP_PASSWORD, "citizen"),
         ]
         created_any = False
         for name, email, pwd, role in default_users:

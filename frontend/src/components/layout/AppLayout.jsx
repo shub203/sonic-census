@@ -42,10 +42,12 @@ const GuideButton = () => (
 );
 
 // ── In-place Admin Authentication Modal when switching from Citizen → Admin ──
+const ENABLE_DEMO_AUTH = import.meta.env.VITE_ENABLE_DEMO_AUTH === 'true';
+
 const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
   const { login, switchRole } = useAuth();
-  const [email, setEmail] = useState('officer@soniccensus.ai');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -161,19 +163,23 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
           </button>
         </form>
 
-        {/* Quick Demo One-Click Access */}
+        {/* Footer Links & Optional Demo Mode */}
         <div className="pt-3 border-t border-sand space-y-2">
-          <div className="text-[10px] font-mono text-graphite uppercase tracking-wider text-center">
-            Demo Evaluation Mode
-          </div>
-          <button
-            type="button"
-            onClick={handleQuickDemo}
-            className="w-full py-2 border border-quiet bg-quiet/10 text-quiet hover:bg-quiet hover:text-paper text-xs font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />
-            <span>1-Click Officer Access (Demo)</span>
-          </button>
+          {ENABLE_DEMO_AUTH && (
+            <>
+              <div className="text-[10px] font-mono text-graphite uppercase tracking-wider text-center">
+                Demo Evaluation Mode
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickDemo}
+                className="w-full py-2 border border-quiet bg-quiet/10 text-quiet hover:bg-quiet hover:text-paper text-xs font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <span>1-Click Officer Access (Demo)</span>
+              </button>
+            </>
+          )}
 
           <div className="flex items-center justify-between pt-1">
             <button
@@ -246,9 +252,16 @@ export const AppLayout = () => {
   const [clockTime, setClockTime] = useState('');
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [showCitizenSwitchModal, setShowCitizenSwitchModal] = useState(false);
+  const [backendWaking, setBackendWaking] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAdmin, switchRole, logout } = useAuth();
+
+  useEffect(() => {
+    const onWaking = (evt) => setBackendWaking(Boolean(evt?.detail?.active));
+    window.addEventListener('sonic-backend-waking', onWaking);
+    return () => window.removeEventListener('sonic-backend-waking', onWaking);
+  }, []);
 
   useEffect(() => {
     const update = () => {
@@ -528,6 +541,12 @@ export const AppLayout = () => {
 
           {/* Page content */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8">
+            {backendWaking && (
+              <div className="mb-4 px-3 py-2 border border-sand bg-paper-light text-xs font-mono text-graphite flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-ink animate-pulse" strokeWidth={1.5} />
+                <span>Waking backend server on Render (cold starts can take up to 50s)...</span>
+              </div>
+            )}
             <ErrorBoundary>
               <Outlet />
             </ErrorBoundary>

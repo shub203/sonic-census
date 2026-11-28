@@ -1,6 +1,6 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -9,6 +9,7 @@ from app.database.connection import get_db
 from app.database.models import Report
 from app.schemas.schemas import ReportGenerateRequest, ReportResponse
 from app.services.report_service import ReportService
+from app.services.audit_service import AuditService
 from app.dependencies import require_officer
 
 router = APIRouter(prefix="/reports", tags=["Reporting Engine"])
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/reports", tags=["Reporting Engine"])
 @router.post("/generate", response_model=ReportResponse)
 def generate_report(
     req: ReportGenerateRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user = Depends(require_officer)
 ):
@@ -27,6 +29,15 @@ def generate_report(
         location=req.location,
         file_format=req.file_format,
         user_id=user_id
+    )
+    AuditService.log_event(
+        db=db,
+        action="report.generate",
+        resource_type="report",
+        resource_id=report.id,
+        actor=user,
+        request=request,
+        details={"report_type": req.report_type, "file_format": req.file_format},
     )
     return report
 
@@ -41,15 +52,23 @@ def download_report(id: str, db: Session = Depends(get_db)):
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
-    # Resolve local file path
     filename = os.path.basename(report.file_path)
-    local_path = os.path.join(settings.REPORTS_DIRECTORY, filename)
-    if not os.path.exists(local_path):
-        raise HTTPException(status_code=404, detail="Report file not found on disk")
-
     media_type = "application/pdf" if report.file_format.upper() == "PDF" else "text/csv"
-    return FileResponse(
-        path=local_path,
-        media_type=media_type,
-        filename=filename
-    )
+
+    # Prefer PostgreSQL/SQLite persistent blob when container disk is ephemeral
+    local_path = os.path.join(settings.REPORTS_DIRECTORY, filename)
+    if os.path.exists(local_path):
+        return FileResponse(
+            path=local_path,
+            media_type=media_type,
+            filename=filename
+        )
+
+    if report.file_blob:
+        return Response(
+            content=report.file_blob,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    raise HTTPException(status_code=404, detail="Report file not found")
